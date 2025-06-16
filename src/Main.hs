@@ -1,4 +1,6 @@
 module Main where
 
+import Run (runInProduction)
+
 main :: IO ()
-main = putStrLn "Hello, world!"
+main = runInProduction

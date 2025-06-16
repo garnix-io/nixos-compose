@@ -1,0 +1,9 @@
+Missing: COMMAND
+
+Usage: vmcli COMMAND
+
+Available commands:
+  start                    Start a development vm
+  ssh                      `ssh` into a running vm
+  status                   Show the status of a running vm
+  stop                     Stop a running vm

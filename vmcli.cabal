@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.37.0.
+-- This file has been generated from package.yaml by hpack version 0.36.1.
 --
 -- see: https://github.com/sol/hpack
 
@@ -11,9 +11,106 @@ build-type:     Simple
 executable vmcli
   main-is: Main.hs
   other-modules:
+      Commands
+      Context
+      Options
+      Run
+      State
+      StdLib
+      Utils
       Paths_vmcli
   hs-source-dirs:
       src
+  default-extensions:
+      DeriveAnyClass
+      DeriveGeneric
+      DerivingStrategies
+      ImportQualifiedPost
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
+      OverloadedStrings
+      PackageImports
+      QuasiQuotes
+      ScopedTypeVariables
+      ViewPatterns
+  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-unsafe -Wno-unused-packages
   build-depends:
-      base
+      aeson
+    , base
+    , containers
+    , cradle
+    , directory
+    , filepath
+    , generic-lens
+    , interpolate
+    , lens
+    , optparse-applicative
+    , port-utils
+    , process
+    , safe-exceptions
+    , string-conversions
+    , text
+    , unix
+    , xdg-basedir
+  default-language: Haskell2010
+
+test-suite spec
+  type: exitcode-stdio-1.0
+  main-is: Spec.hs
+  other-modules:
+      CliSpec
+      RunSpec
+      SpecHook
+      Commands
+      Context
+      Main
+      Options
+      Run
+      State
+      StdLib
+      Utils
+      Paths_vmcli
+  hs-source-dirs:
+      spec
+      src
+  default-extensions:
+      DeriveAnyClass
+      DeriveGeneric
+      DerivingStrategies
+      ImportQualifiedPost
+      NamedFieldPuns
+      NumericUnderscores
+      OverloadedLabels
+      OverloadedStrings
+      PackageImports
+      QuasiQuotes
+      ScopedTypeVariables
+      ViewPatterns
+  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-unsafe -Wno-unused-packages
+  build-depends:
+      aeson
+    , base
+    , bytestring
+    , containers
+    , cradle
+    , directory
+    , filepath
+    , generic-lens
+    , hspec
+    , hspec-discover
+    , hspec-golden
+    , interpolate
+    , lens
+    , mockery
+    , optparse-applicative
+    , port-utils
+    , process
+    , safe-exceptions
+    , silently
+    , string-conversions
+    , temporary
+    , text
+    , unix
+    , xdg-basedir
   default-language: Haskell2010

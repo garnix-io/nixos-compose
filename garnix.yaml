@@ -1,0 +1,3 @@
+actions:
+  - on: push
+    run: spec
