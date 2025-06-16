@@ -1,0 +1,8 @@
+name: vmcli
+executables:
+  vmcli:
+    source-dirs: src
+    main: Main.hs
+
+dependencies:
+  - base
