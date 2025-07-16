@@ -1,0 +1,9 @@
+Networking scratch notes:
+
+First, run this to create a virtual switch that the VMs connect to:
+vde_switch --sock vde1.ctl --dirmode 0700 --hub
+
+Optionally, run this to create a virtual network interface on the host to allow it to communicate with the VMs:
+sudo vde_plug2tap --sock vde1.ctl tap0
+
+We will need to manually assign the IPs using `ip addr`/`ip link`

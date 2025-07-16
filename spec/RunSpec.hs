@@ -4,7 +4,7 @@
 module RunSpec where
 
 import Context
-import Control.Concurrent (modifyMVar_, newMVar, readMVar)
+import Control.Concurrent (forkIO, modifyMVar_, newMVar, readMVar)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 import Control.Exception (finally)
 import Control.Monad
@@ -138,8 +138,8 @@ spec = around_ inTempDirectory $ do
     withContext $ \ctx -> do
       mvar <- newEmptyMVar
       ctx <-
-        pure
-          $ ctx
+        pure $
+          ctx
             { registerProcess = \handle -> registerProcess ctx handle >> putMVar mvar handle
             }
       writeStandardFlake ctx Nothing
@@ -149,6 +149,16 @@ spec = around_ inTempDirectory $ do
       result <- assertSuccess $ test ctx ["status", "server"]
       result ^. #stdout `shouldBe` "WARN: cannot find process for vm: server\nno vms running\n"
       listDirectory (ctx ^. #storageDir) `shouldReturn` []
+
+  fit "enables networking between multiple vms" $ do
+    withContext $ \ctx -> do
+      writeMultiHostFlake ctx Nothing
+      _ <- assertSuccess $ test ctx ["start", "server-1"]
+      _ <- assertSuccess $ test ctx ["start", "server-2"]
+      void $ forkIO $ void $ test ctx ["ssh", "server-1", "while true; do echo hello from server-1 | nc -l 8888; done"]
+      -- TODO: change to server-2:
+      result <- assertSuccess $ test ctx ["ssh", "server-1", "nc -v localhost 8888"]
+      result ^. #stdout `shouldBe` "TODO"
 
   it "`stop` cleans up in the storageDir" $ do
     pending
@@ -188,6 +198,41 @@ writeStandardFlake ctx addedModule = do
               inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
               outputs = { nixpkgs, ... }: {
                 nixosConfigurations.server = (nixpkgs.lib.nixosSystem {
+                  modules = [
+                    {
+                      networking.hostName = "server";
+                      nixpkgs.hostPlatform = "x86_64-linux";
+                      system.stateVersion = "24.11";
+                    }
+                    (#{fromMaybe emptyModule addedModule})
+                  ];
+                });
+              };
+            }
+          |]
+  T.writeFile (ctx.workingDir </> "flake.nix") flake
+
+writeMultiHostFlake :: Context -> Maybe Text -> IO ()
+writeMultiHostFlake ctx addedModule = do
+  let emptyModule = "{}"
+  let flake =
+        cs
+          [i|
+            {
+              inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
+              outputs = { nixpkgs, ... }: {
+                nixosConfigurations.server-1 = (nixpkgs.lib.nixosSystem {
+                  modules = [
+                    {
+                      networking.hostName = "server";
+                      nixpkgs.hostPlatform = "x86_64-linux";
+                      system.stateVersion = "24.11";
+                    }
+                    (#{fromMaybe emptyModule addedModule})
+                  ];
+                });
+
+                nixosConfigurations.server-2 = (nixpkgs.lib.nixosSystem {
                   modules = [
                     {
                       networking.hostName = "server";

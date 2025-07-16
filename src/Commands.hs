@@ -119,7 +119,16 @@ start ctx vmNames = forM_ vmNames $ \vmName -> do
               <&> Map.fromList
           createProcess
             (proc vmExecutable [])
+            -- ( proc
+            --     vmExecutable
+            --     [ "-device",
+            --       "virtio-net-pci,netdev=vlan1,mac=52:54:00:12:01:03",
+            --       "-netdev",
+            --       "vde,id=vlan1,sock=/home/alex/vmcli/vde1.ctl"
+            --     ]
+            -- )
               { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
+                std_in = NoStream,
                 std_out = UseHandle stdoutHandle,
                 std_err = UseHandle stderrHandle
               }
@@ -148,6 +157,9 @@ getModuleExtensions ctx vmName = do
             graphics = false;
             forwardPorts = [{ from = "host"; host.port = #{port}; guest.port = 22; }];
           };
+          # networking.interfaces.eth1.ipv4.addresses = [
+          #   { address = "10.0.0.5"; prefixLength = 24; }
+          # ];
         }
       |]
 
