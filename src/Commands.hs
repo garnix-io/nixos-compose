@@ -8,7 +8,6 @@ import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
-import NixVms
 import State
 import StdLib
 import System.Directory (doesFileExist)
@@ -34,7 +33,7 @@ start ctx vmNames = forM_ vmNames $ \vmName -> do
           Cradle.cmd "ssh-keygen"
             & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
 
-      ph <- buildAndRun ctx vmName
+      ph <- buildAndRun (nixVms ctx) ctx vmName
       registerProcess ctx ph
       pid <- getPid ph <&> fromMaybe (error "no pid")
       state <- readState ctx vmName

@@ -13,6 +13,7 @@ executable vmcli
   other-modules:
       Commands
       Context
+      Context.Production
       NixVms
       Options
       Run
@@ -65,6 +66,7 @@ test-suite spec
       SpecHook
       Commands
       Context
+      Context.Production
       Main
       NixVms
       Options

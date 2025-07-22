@@ -14,9 +14,6 @@ import System.Directory
   )
 import System.FilePath ((</>))
 
-newtype VmName = VmName {vmNameToText :: Text}
-  deriving stock (Eq, Show)
-
 data VmState = VmState
   { port :: Int,
     pid :: Maybe Int

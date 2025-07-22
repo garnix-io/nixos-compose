@@ -1,4 +1,4 @@
-module NixVms where
+module NixVms (NixVms (..), production) where
 
 import Context
 import Cradle
@@ -20,8 +20,11 @@ import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), create
 import Utils
 import Prelude
 
-buildAndRun :: Context -> VmName -> IO ProcessHandle
-buildAndRun ctx vmName = do
+production :: NixVms
+production = NixVms {buildAndRun = buildAndRunImpl}
+
+buildAndRunImpl :: Context -> VmName -> IO ProcessHandle
+buildAndRunImpl ctx vmName = do
   vmExecutable <- logStep "Building NixOS config..." $ do
     moduleExtensions <- getModuleExtensions ctx vmName
     (Cradle.StdoutTrimmed drvPathJson) <-

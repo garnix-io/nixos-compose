@@ -14,8 +14,9 @@ import Data.String.Conversions
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import NixVms qualified
 import Run (run)
-import State (VmName (VmName), readState)
+import State (readState)
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
 import System.Exit (ExitCode (..))
@@ -212,7 +213,8 @@ withContext action = do
                 { registerProcess = \handle -> modifyMVar_ processHandles $ \h -> pure $ h <> [handle],
                   stdin = stdinHandle,
                   workingDir = workingDir,
-                  storageDir = storageDir </> "vmcli"
+                  storageDir = storageDir </> "vmcli",
+                  nixVms = NixVms.production
                 }
         action ctx
           `finally` (readMVar processHandles >>= mapM_ endProcess)

@@ -1,10 +1,10 @@
 module Options where
 
+import Context
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text
 import Options.Applicative
-import State
 import StdLib
 
 newtype Options = Options Command
