@@ -6,7 +6,7 @@ import Control.Monad (forM_, when)
 import Cradle
 import Data.List.NonEmpty (NonEmpty)
 import Data.Maybe (fromMaybe)
-import Data.String.Conversions (cs)
+import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import State
 import StdLib
@@ -32,7 +32,6 @@ start ctx vmNames = forM_ vmNames $ \vmName -> do
           -- todo: make runtime dep
           Cradle.cmd "ssh-keygen"
             & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-
       ph <- buildAndRun (nixVms ctx) ctx vmName
       registerProcess ctx ph
       pid <- getPid ph <&> fromMaybe (error "no pid")
@@ -48,46 +47,24 @@ stop ctx vmName = do
     Nothing -> error "pid missing from state file"
   removeState ctx vmName
 
-sshIntoHost :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
-sshIntoHost ctx vmName command = do
-  vmKeyPath <- getStateFile ctx vmName "vmkey"
-  port <- State.readState ctx vmName <&> (^. #port)
-  Cradle.run $
-    Cradle.cmd "ssh"
-      & Cradle.setStdinHandle (ctx ^. #stdin)
-      & Cradle.addArgs
-        ( [ "-i",
-            cs vmKeyPath,
-            "-l",
-            "vmuser",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=2",
-            "-p",
-            cs (show port),
-            "localhost"
-          ]
-            <> command
-        )
-
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do
-  (StdoutRaw _, StderrRaw _, exitCode) <- sshIntoHost ctx vmName ["true"]
+  (StdoutRaw _, StderrRaw _, exitCode) <- sshIntoHost (nixVms ctx) ctx vmName ["true"]
   when (exitCode /= Cradle.ExitSuccess) $ do
     threadDelay 1_000_000
     waitForVm ctx vmName
 
 ssh :: Context -> VmName -> [Text] -> IO ()
 ssh ctx vmName command = do
-  sshIntoHost ctx vmName command
+  sshIntoHost (nixVms ctx) ctx vmName command
 
-status :: Context -> VmName -> IO ()
+status :: Context -> [VmName] -> IO ()
 status ctx vmName = do
-  runningVms <- State.listRunningVms ctx
-  T.putStrLn $ case runningVms of
-    vms | vmName `elem` vms -> vmNameToText vmName <> ": running"
-    [] -> "no vms running"
-    _ -> vmNameToText vmName <> ": not running"
+  runningVms <- sort <$> State.listRunningVms ctx
+  T.putStr $ T.unlines $ case vmName of
+    [] -> flip map runningVms $ \runningVm ->
+      vmNameToText runningVm <> ": running"
+    vmNames -> flip map vmNames $ \vmName ->
+      if vmName `elem` runningVms
+        then vmNameToText vmName <> ": running"
+        else vmNameToText vmName <> ": not running"

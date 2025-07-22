@@ -21,7 +21,11 @@ import Utils
 import Prelude
 
 production :: NixVms
-production = NixVms {buildAndRun = buildAndRunImpl}
+production =
+  NixVms
+    { buildAndRun = buildAndRunImpl,
+      sshIntoHost = sshIntoHostImpl
+    }
 
 buildAndRunImpl :: Context -> VmName -> IO ProcessHandle
 buildAndRunImpl ctx vmName = do
@@ -117,3 +121,28 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '$' -> "\\$"
       '\\' -> "\\\\"
       c -> T.singleton c
+
+sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+sshIntoHostImpl ctx vmName command = do
+  vmKeyPath <- getStateFile ctx vmName "vmkey"
+  port <- State.readState ctx vmName <&> (^. #port)
+  Cradle.run $
+    Cradle.cmd "ssh"
+      & Cradle.setStdinHandle (ctx ^. #stdin)
+      & Cradle.addArgs
+        ( [ "-i",
+            cs vmKeyPath,
+            "-l",
+            "vmuser",
+            "-o",
+            "StrictHostKeyChecking=no",
+            "-o",
+            "UserKnownHostsFile=/dev/null",
+            "-o",
+            "ConnectTimeout=2",
+            "-p",
+            cs (show port),
+            "localhost"
+          ]
+            <> command
+        )

@@ -1,4 +1,9 @@
-module Options where
+module Options
+  ( Options (..),
+    Command (..),
+    parser,
+  )
+where
 
 import Context
 import Data.List.NonEmpty (NonEmpty)
@@ -11,9 +16,9 @@ newtype Options = Options Command
   deriving stock (Show)
 
 data Command
-  = Start {vmNames :: NonEmpty VmName}
+  = Start {vmNamesNonEmpty :: NonEmpty VmName}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
-  | Status {vmName :: VmName}
+  | Status {vmNames :: [VmName]}
   | Stop {vmName :: VmName}
   deriving stock (Show, Generic)
 
@@ -28,7 +33,22 @@ parser =
       Options
         <$> hsubparser
           ( command "start" (info (Start . NonEmpty.fromList <$> some parseVmName) (fullDesc <> progDesc "Start a development vm"))
-              <> command "ssh" (info (Ssh <$> parseVmName <*> many (argument str (metavar "SSH_COMMAND"))) (fullDesc <> progDesc "`ssh` into a running vm"))
-              <> command "status" (info (Status <$> parseVmName) (fullDesc <> progDesc "Show the status of a running vm"))
-              <> command "stop" (info (Stop <$> parseVmName) (progDesc "Stop a running vm"))
+              <> command
+                "ssh"
+                ( info
+                    (Ssh <$> parseVmName <*> many (argument str (metavar "SSH_COMMAND")))
+                    (fullDesc <> progDesc "`ssh` into a running vm")
+                )
+              <> command
+                "status"
+                ( info
+                    (Status <$> many parseVmName)
+                    (fullDesc <> progDesc "Show the status of running vms")
+                )
+              <> command
+                "stop"
+                ( info
+                    (Stop <$> parseVmName)
+                    (progDesc "Stop a running vm")
+                )
           )

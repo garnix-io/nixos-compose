@@ -29,7 +29,7 @@ run ctx args =
       Start vmNames -> start ctx vmNames
       Stop vmName -> stop ctx vmName
       Ssh vmName command -> ssh ctx vmName command
-      Status vmName -> status ctx vmName
+      Status vmNames -> status ctx vmNames
     pure ExitSuccess
 
 handleExceptions :: IO ExitCode -> IO ExitCode

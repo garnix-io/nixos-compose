@@ -3,9 +3,11 @@ module TestUtils where
 import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
-import Control.Monad
+import Cradle qualified
 import Data.String.Conversions
+import Network.Socket.Free (getFreePort)
 import Run (run)
+import State
 import StdLib
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
@@ -25,8 +27,17 @@ data TestResult = TestResult
 assertSuccess :: (HasCallStack) => IO TestResult -> IO TestResult
 assertSuccess action = do
   result <- action
-  when (result ^. #exitCode /= ExitSuccess) $ do
-    expectationFailure $ "command exited with " <> show result
+  case result ^. #exitCode of
+    ExitFailure code ->
+      expectationFailure $
+        cs $
+          "command exited with "
+            <> cs (show code)
+            <> "\nStdout: \n"
+            <> stdout result
+            <> "\nStderr: \n"
+            <> stderr result
+    ExitSuccess -> pure ()
   pure result
 
 test :: Context -> [Text] -> IO TestResult
@@ -57,6 +68,32 @@ endProcess handle = do
   waitForProcess handle
 
 withMockContext :: (Context -> IO a) -> IO a
-withMockContext =
-  let mockNixVms = NixVms {buildAndRun = error "buildAndRun mock"}
-   in withContext mockNixVms
+withMockContext action = do
+  let mockNixVms =
+        NixVms
+          { buildAndRun =
+              \ctx vmName -> do
+                (_, _, _, ph) <- do
+                  createProcess
+                    (proc "sleep" ["inf"])
+                      { std_in = NoStream,
+                        std_out = NoStream,
+                        std_err = NoStream
+                      }
+                port <- getFreePort
+                State.writeState ctx vmName (VmState {pid = Nothing, port})
+                pure ph,
+            sshIntoHost = \ctx vmName args -> do
+              state <- State.readState ctx vmName
+              case state ^. #pid of
+                Nothing -> error "sshIntoHost': mock vm not running"
+                Just _pid -> case args of
+                  [] -> error "sshIntoHost': no args given"
+                  command : args ->
+                    withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                      Cradle.run $
+                        Cradle.cmd (cs command)
+                          & Cradle.addArgs args
+                          & Cradle.setWorkingDir tempDir
+          }
+  withContext mockNixVms action

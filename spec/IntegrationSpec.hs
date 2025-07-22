@@ -151,9 +151,6 @@ spec = around_ inTempDirectory $ do
   it "`stop` cleans up in the storageDir" $ do
     pending
 
-  it "`status` without argument lists the status of all vms" $ do
-    pending
-
   it "prints a help text with all commands when running with no arguments" $ do
     pending
 

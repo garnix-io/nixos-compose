@@ -45,6 +45,7 @@ default-extensions:
   - OverloadedStrings
   - PackageImports
   - QuasiQuotes
+  - RankNTypes
   - ScopedTypeVariables
   - ViewPatterns
 
