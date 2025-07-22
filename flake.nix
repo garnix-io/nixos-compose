@@ -103,7 +103,7 @@
                 cd "$dir"
                 cp -r ${devSrc}/. .
                 chmod -R a+w .
-                cabal test
+                cabal test --ghc-option=-Werror
               '';
             });
           };
@@ -128,4 +128,3 @@
       }
     );
 }
-
