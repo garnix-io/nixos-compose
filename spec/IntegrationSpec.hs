@@ -12,6 +12,7 @@ import Data.String.Conversions
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import NixVms qualified
 import State (readState)
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
@@ -20,7 +21,11 @@ import System.FilePath ((</>))
 import System.IO (SeekMode (..), hSeek)
 import Test.Hspec
 import Test.Mockery.Directory (inTempDirectory)
-import TestUtils
+import TestUtils hiding (withContext)
+import TestUtils qualified
+
+withContext :: (Context -> IO a) -> IO a
+withContext = TestUtils.withContext NixVms.production
 
 spec :: Spec
 spec = around_ inTempDirectory $ do
