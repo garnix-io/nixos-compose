@@ -12,7 +12,6 @@ import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions
 import Data.String.Interpolate (i)
-import Data.Text (Text)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Run (run)
@@ -138,8 +137,8 @@ spec = around_ inTempDirectory $ do
     withContext $ \ctx -> do
       mvar <- newEmptyMVar
       ctx <-
-        pure
-          $ ctx
+        pure $
+          ctx
             { registerProcess = \handle -> registerProcess ctx handle >> putMVar mvar handle
             }
       writeStandardFlake ctx Nothing
