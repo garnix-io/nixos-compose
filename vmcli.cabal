@@ -62,8 +62,9 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       CliSpec
-      RunSpec
+      IntegrationSpec
       SpecHook
+      TestUtils
       Commands
       Context
       Context.Production

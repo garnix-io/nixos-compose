@@ -1,10 +1,10 @@
 module CliSpec where
 
 import Data.String.Conversions (cs)
-import RunSpec (test, withContext)
 import StdLib
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
+import TestUtils (test, withContext)
 
 spec :: Spec
 spec = do
