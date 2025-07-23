@@ -1,6 +1,6 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.36.1.
+-- This file has been generated from package.yaml by hpack version 0.37.0.
 --
 -- see: https://github.com/sol/hpack
 
@@ -13,6 +13,8 @@ executable vmcli
   other-modules:
       Commands
       Context
+      Context.Production
+      NixVms
       Options
       Run
       State
@@ -32,9 +34,10 @@ executable vmcli
       OverloadedStrings
       PackageImports
       QuasiQuotes
+      RankNTypes
       ScopedTypeVariables
       ViewPatterns
-  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-unsafe -Wno-unused-packages
+  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:
       aeson
     , base
@@ -60,11 +63,14 @@ test-suite spec
   main-is: Spec.hs
   other-modules:
       CliSpec
-      RunSpec
+      IntegrationSpec
       SpecHook
+      TestUtils
       Commands
       Context
+      Context.Production
       Main
+      NixVms
       Options
       Run
       State
@@ -85,9 +91,10 @@ test-suite spec
       OverloadedStrings
       PackageImports
       QuasiQuotes
+      RankNTypes
       ScopedTypeVariables
       ViewPatterns
-  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-unsafe -Wno-unused-packages
+  ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:
       aeson
     , base

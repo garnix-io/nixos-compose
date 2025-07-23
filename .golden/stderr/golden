@@ -5,5 +5,5 @@ Usage: vmcli COMMAND
 Available commands:
   start                    Start a development vm
   ssh                      `ssh` into a running vm
-  status                   Show the status of a running vm
+  status                   Show the status of running vms
   stop                     Stop a running vm

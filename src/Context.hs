@@ -1,8 +1,7 @@
 module Context where
 
+import Cradle qualified
 import StdLib
-import System.Directory (getCurrentDirectory)
-import System.Environment.XDG.BaseDir qualified as XDG
 import System.IO
 import System.Process
 
@@ -10,21 +9,15 @@ data Context = Context
   { registerProcess :: ProcessHandle -> IO (),
     stdin :: Handle,
     workingDir :: FilePath,
-    storageDir :: FilePath
+    storageDir :: FilePath,
+    nixVms :: NixVms
   }
   deriving stock (Generic)
 
-mkProductionContext :: IO Context
-mkProductionContext = do
-  workingDir <- getCurrentDirectory
-  storageDir <- XDG.getUserDataDir "vmcli"
-  pure $
-    Context
-      { registerProcess = const $ pure (),
-        Context.stdin = System.IO.stdin,
-        workingDir,
-        storageDir
-      }
+data NixVms = NixVms
+  { buildAndRun :: Context -> VmName -> IO ProcessHandle,
+    sshIntoHost :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+  }
 
-getCacheDir :: IO FilePath
-getCacheDir = XDG.getUserDataDir "vmcli"
+newtype VmName = VmName {vmNameToText :: Text}
+  deriving stock (Eq, Show, Ord)

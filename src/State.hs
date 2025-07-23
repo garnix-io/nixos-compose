@@ -4,7 +4,6 @@ import Context
 import Control.Monad (filterM, unless)
 import Data.Aeson
 import Data.String.Conversions (cs)
-import Data.Text (Text)
 import Data.Text.IO qualified as T
 import StdLib
 import System.Directory
@@ -14,9 +13,6 @@ import System.Directory
     removeDirectoryRecursive,
   )
 import System.FilePath ((</>))
-
-newtype VmName = VmName {vmNameToText :: Text}
-  deriving stock (Eq, Show)
 
 data VmState = VmState
   { port :: Int,

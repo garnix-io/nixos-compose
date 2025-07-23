@@ -2,6 +2,7 @@ module Run where
 
 import Commands
 import Context
+import Context.Production qualified
 import Control.Exception (SomeException, fromException)
 import Control.Exception.Safe (try)
 import Cradle (ExitCode (..))
@@ -17,7 +18,7 @@ import System.IO (hPrint, stderr)
 runInProduction :: IO ()
 runInProduction = do
   args <- getArgs <&> fmap cs
-  ctx <- mkProductionContext
+  ctx <- Context.Production.mkContext
   run ctx args >>= exitWith
 
 run :: Context -> [Text] -> IO ExitCode
@@ -28,7 +29,7 @@ run ctx args =
       Start vmNames -> start ctx vmNames
       Stop vmName -> stop ctx vmName
       Ssh vmName command -> ssh ctx vmName command
-      Status vmName -> status ctx vmName
+      Status vmNames -> status ctx vmNames
     pure ExitSuccess
 
 handleExceptions :: IO ExitCode -> IO ExitCode

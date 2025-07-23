@@ -107,6 +107,31 @@
               '';
             });
           };
+          watch =
+            {
+              type = "app";
+              program = pkgs.lib.getExe (pkgs.writeShellApplication {
+                name = "watch";
+                inheritPath = false;
+                runtimeInputs = [
+                  ghcWithDeps
+                  pkgs.cabal-install
+                  pkgs.coreutils
+                  pkgs.ghcid
+                  pkgs.hpack
+                ] ++
+                runtimeDeps;
+                text = ''
+                  hpack
+                  ghcid \
+                    --command "cabal repl test:spec" \
+                    --allow-eval \
+                    --test ":main --skip Integration $*" \
+                    --warnings \
+                '';
+              });
+            };
+
         };
         devShells = {
           default = pkgs.mkShell {
