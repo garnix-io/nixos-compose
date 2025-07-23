@@ -122,7 +122,7 @@ spec = around_ inTempDirectory $ do
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
       state <- readState ctx (VmName "server")
       _ <- assertSuccess $ test ctx ["stop", "server"]
-      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "no vms running\n"
+      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
       doesDirectoryExist ("/proc" </> show (state ^. #pid)) `shouldReturn` False
 
   it "doesn't complain when starting a vm twice" $ do
@@ -145,7 +145,7 @@ spec = around_ inTempDirectory $ do
       handle <- readMVar mvar
       _ <- endProcess handle
       result <- assertSuccess $ test ctx ["status", "server"]
-      result ^. #stdout `shouldBe` "WARN: cannot find process for vm: server\nno vms running\n"
+      result ^. #stdout `shouldBe` "WARN: cannot find process for vm: server\nserver: not running\n"
       listDirectory (ctx ^. #storageDir) `shouldReturn` []
 
   it "`stop` cleans up in the storageDir" $ do
