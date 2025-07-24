@@ -15,7 +15,8 @@ data Context = Context
   deriving stock (Generic)
 
 data NixVms = NixVms
-  { buildAndRun :: Context -> VmName -> IO ProcessHandle,
+  { listVms :: Context -> IO [VmName],
+    buildAndRun :: Context -> VmName -> IO ProcessHandle,
     sshIntoHost :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
   }
 

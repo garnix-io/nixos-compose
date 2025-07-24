@@ -1,6 +1,7 @@
 module Options
   ( Options (..),
     Command (..),
+    StartOptions (..),
     parser,
   )
 where
@@ -16,7 +17,8 @@ newtype Options = Options Command
   deriving stock (Show)
 
 data Command
-  = Start {vmNamesNonEmpty :: NonEmpty VmName}
+  = List
+  | Start StartOptions
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
   | Stop {vmName :: VmName}
@@ -25,6 +27,16 @@ data Command
 parseVmName :: Parser VmName
 parseVmName = VmName <$> argument str (metavar "VM_NAME")
 
+data StartOptions
+  = StartAll
+  | StartSome (NonEmpty VmName)
+  deriving stock (Show, Generic)
+
+parseStartOptions :: Parser StartOptions
+parseStartOptions =
+  flag' StartAll (long "all")
+    <|> (StartSome . NonEmpty.fromList <$> some parseVmName)
+
 parser :: ParserInfo Options
 parser =
   info p mempty
@@ -32,7 +44,18 @@ parser =
     p =
       Options
         <$> hsubparser
-          ( command "start" (info (Start . NonEmpty.fromList <$> some parseVmName) (fullDesc <> progDesc "Start a development vm"))
+          ( command
+              "list"
+              ( info
+                  (pure List)
+                  (fullDesc <> progDesc "List all configured vms")
+              )
+              <> command
+                "start"
+                ( info
+                    (Start <$> parseStartOptions)
+                    (fullDesc <> progDesc "Start a development vm")
+                )
               <> command
                 "ssh"
                 ( info

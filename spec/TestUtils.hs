@@ -1,15 +1,18 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module TestUtils where
 
 import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
 import Cradle qualified
+import Data.String (IsString)
 import Data.String.Conversions
+import GHC.Exts (IsString (..))
 import Network.Socket.Free (getFreePort)
 import Run (run)
 import State
 import StdLib
-import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.IO qualified
 import System.IO.Silently
@@ -22,7 +25,7 @@ data TestResult = TestResult
     stderr :: Text,
     exitCode :: ExitCode
   }
-  deriving stock (Generic, Show)
+  deriving stock (Generic, Show, Eq)
 
 assertSuccess :: (HasCallStack) => IO TestResult -> IO TestResult
 assertSuccess action = do
@@ -67,12 +70,19 @@ endProcess handle = do
   terminateProcess handle
   waitForProcess handle
 
-withMockContext :: (Context -> IO a) -> IO a
-withMockContext action = do
+instance IsString VmName where
+  fromString :: String -> VmName
+  fromString = VmName . cs
+
+withMockContext :: [VmName] -> (Context -> IO a) -> IO a
+withMockContext vmNames action = do
   let mockNixVms =
         NixVms
-          { buildAndRun =
+          { listVms = \_ctx -> pure vmNames,
+            buildAndRun =
               \ctx vmName -> do
+                unless (vmName `elem` vmNames) $ do
+                  error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do
                   createProcess
                     (proc "sleep" ["inf"])
@@ -84,11 +94,13 @@ withMockContext action = do
                 State.writeState ctx vmName (VmState {pid = Nothing, port})
                 pure ph,
             sshIntoHost = \ctx vmName args -> do
+              unless (vmName `elem` vmNames) $ do
+                error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
               state <- State.readState ctx vmName
               case state ^. #pid of
-                Nothing -> error "sshIntoHost': mock vm not running"
+                Nothing -> error "nix vm mock: sshIntoHost: mock vm not running"
                 Just _pid -> case args of
-                  [] -> error "sshIntoHost': no args given"
+                  [] -> error "nix vm mock: sshIntoHost: no args given"
                   command : args ->
                     withSystemTempDirectory "fake-ssh" $ \tempDir -> do
                       Cradle.run $

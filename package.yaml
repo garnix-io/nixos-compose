@@ -39,6 +39,8 @@ default-extensions:
   - DeriveGeneric
   - DerivingStrategies
   - ImportQualifiedPost
+  - LambdaCase
+  - InstanceSigs
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels
