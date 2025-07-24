@@ -1,20 +1,23 @@
 module NixVms (NixVms (..), production) where
 
 import Context
+import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
 import Data.Map.Strict qualified as Map
+import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Network.Socket.Free (getFreePort)
+import Options (Verbosity (..), VmName (..))
 import State
 import StdLib
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory, (</>))
-import System.IO (IOMode (..), openFile)
+import System.IO (Handle, IOMode (..), openFile)
 import System.IO qualified
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
@@ -47,8 +50,8 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildAndRunImpl :: Context -> VmName -> IO ProcessHandle
-buildAndRunImpl ctx vmName = do
+buildAndRunImpl :: Context -> Verbosity -> VmName -> IO ProcessHandle
+buildAndRunImpl ctx verbosity vmName = do
   vmExecutable <- logStep "Building NixOS config..." $ do
     moduleExtensions <- getModuleExtensions ctx vmName
     (Cradle.StdoutTrimmed drvPathJson) <-
@@ -85,24 +88,7 @@ buildAndRunImpl ctx vmName = do
     case files of
       [file] -> pure $ cs outPath </> "bin" </> file
       files -> error $ "expected one vm script: " <> show files
-
-  logStep "Starting VM..." $ do
-    storageDir <- getStateDir ctx vmName
-    let nixDiskImage = storageDir </> cs (vmNameToText vmName) </> "image.qcow2"
-    createDirectoryIfMissing True (takeDirectory nixDiskImage)
-    stdoutHandle <- openFile (storageDir </> "./stdout.log") WriteMode
-    stderrHandle <- openFile (storageDir </> "./stderr.log") WriteMode
-    (_, _, _, ph) <- do
-      parentEnvironment <-
-        getEnvironment
-          <&> Map.fromList
-      createProcess
-        (proc vmExecutable [])
-          { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
-            std_out = UseHandle stdoutHandle,
-            std_err = UseHandle stderrHandle
-          }
-    pure ph
+  logStep "Starting VM..." $ runVm ctx verbosity vmName vmExecutable
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -147,6 +133,40 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '$' -> "\\$"
       '\\' -> "\\\\"
       c -> T.singleton c
+
+runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runVm ctx verbosity vmName vmExecutable = do
+  storageDir <- getStateDir ctx vmName
+  let nixDiskImage = storageDir </> cs (vmNameToText vmName) </> "image.qcow2"
+  createDirectoryIfMissing True (takeDirectory nixDiskImage)
+  parentEnvironment <- getEnvironment <&> Map.fromList
+  let mkProc stdout stdin =
+        (System.Process.proc vmExecutable [])
+          { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
+            std_out = stdout,
+            std_err = stdin
+          }
+  proc <- case verbosity of
+    DefaultVerbosity -> do
+      stdoutHandle <- openFile (storageDir </> "./stdout.log") WriteMode
+      stderrHandle <- openFile (storageDir </> "./stderr.log") WriteMode
+      pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
+    Verbose -> pure $ mkProc CreatePipe CreatePipe
+  (_, stdout, stderr, ph) <- createProcess proc
+  case verbosity of
+    DefaultVerbosity -> pure ()
+    Verbose -> do
+      (Just stdout, Just stderr) <- pure (stdout, stderr)
+      _ <- forkIO $ streamHandles "qemu" stdout System.IO.stdout
+      _ <- forkIO $ streamHandles "qemu" stderr System.IO.stderr
+      pure ()
+  pure ph
+
+streamHandles :: Text -> Handle -> Handle -> IO ()
+streamHandles prefix input output = do
+  chunk <- T.hGetLine input
+  T.hPutStrLn output $ prefix <> "> " <> stripAnsiEscapeCodes chunk
+  streamHandles prefix input output
 
 sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
 sshIntoHostImpl ctx vmName command = do

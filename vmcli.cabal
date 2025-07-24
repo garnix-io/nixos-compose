@@ -55,6 +55,7 @@ executable vmcli
     , process
     , safe-exceptions
     , string-conversions
+    , strip-ansi-escape
     , text
     , unix
     , xdg-basedir
@@ -120,6 +121,7 @@ test-suite spec
     , safe-exceptions
     , silently
     , string-conversions
+    , strip-ansi-escape
     , temporary
     , text
     , unix

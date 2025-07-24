@@ -1,12 +1,13 @@
 module Options
-  ( Options (..),
+  ( parser,
+    Options (..),
+    Verbosity (..),
     Command (..),
     StartOptions (..),
-    parser,
+    VmName (..),
   )
 where
 
-import Context
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text
@@ -18,14 +19,26 @@ newtype Options = Options Command
 
 data Command
   = List
-  | Start StartOptions
+  | Start {verbosity :: Verbosity, options :: StartOptions}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
   | Stop {vmName :: VmName}
   deriving stock (Show, Generic)
 
-parseVmName :: Parser VmName
-parseVmName = VmName <$> argument str (metavar "VM_NAME")
+data Verbosity
+  = DefaultVerbosity
+  | Verbose
+  deriving stock (Show)
+
+parseVerbosity :: Parser Verbosity
+parseVerbosity =
+  flag
+    DefaultVerbosity
+    Verbose
+    ( long "verbose"
+        <> short 'v'
+        <> help "increase verbosity"
+    )
 
 data StartOptions
   = StartAll
@@ -53,7 +66,7 @@ parser =
               <> command
                 "start"
                 ( info
-                    (Start <$> parseStartOptions)
+                    (Start <$> parseVerbosity <*> parseStartOptions)
                     (fullDesc <> progDesc "Start a development vm")
                 )
               <> command
@@ -75,3 +88,9 @@ parser =
                     (progDesc "Stop a running vm")
                 )
           )
+
+newtype VmName = VmName {vmNameToText :: Text}
+  deriving stock (Eq, Show, Ord)
+
+parseVmName :: Parser VmName
+parseVmName = VmName <$> argument str (metavar "VM_NAME")
