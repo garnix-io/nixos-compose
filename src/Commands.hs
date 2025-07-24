@@ -1,43 +1,68 @@
-module Commands (start, stop, ssh, status) where
+module Commands
+  ( list,
+    start,
+    stop,
+    ssh,
+    status,
+  )
+where
 
 import Context
 import Control.Concurrent (threadDelay)
-import Control.Monad (forM_, when)
+import Control.Monad (forM_)
 import Cradle
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Options (StartOptions (..))
 import State
 import StdLib
 import System.Directory (doesFileExist)
+import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (getPid)
 import Utils
 import Prelude
 
-start :: Context -> NonEmpty VmName -> IO ()
-start ctx vmNames = forM_ vmNames $ \vmName -> do
-  alreadyRunning <- listRunningVms ctx
-  if vmName `elem` alreadyRunning
-    then do
-      T.putStrLn $ vmNameToText vmName <> ": already running"
-    else do
-      vmKeyPath <- getStateFile ctx vmName "vmkey"
-      exists <- doesFileExist vmKeyPath
-      when exists $ do
-        error $ vmKeyPath <> " already exists"
-      () <-
-        runWithErrorHandling $
-          -- todo: make runtime dep
-          Cradle.cmd "ssh-keygen"
-            & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-      ph <- buildAndRun (nixVms ctx) ctx vmName
-      registerProcess ctx ph
-      pid <- getPid ph <&> fromMaybe (error "no pid")
-      state <- readState ctx vmName
-      writeState ctx vmName (state {pid = Just $ fromIntegral pid})
-      waitForVm ctx vmName
+list :: Context -> IO ()
+list ctx = do
+  vms <- listVms (nixVms ctx) ctx
+  T.putStrLn $ case vms of
+    [] -> "no vms configured"
+    vms -> "configured vms: " <> T.intercalate ", " (map vmNameToText vms)
+
+start :: Context -> StartOptions -> IO ()
+start ctx startOptions = do
+  vmNames <- case startOptions of
+    StartAll -> do
+      vmNames <- listVms (nixVms ctx) ctx
+      when (null vmNames) $ do
+        T.hPutStrLn stderr "No vms are defined. Nothing to do."
+        throwIO $ ExitFailure 1
+      pure vmNames
+    StartSome vmNames -> pure $ NonEmpty.toList vmNames
+  forM_ vmNames $ \vmName -> do
+    alreadyRunning <- listRunningVms ctx
+    if vmName `elem` alreadyRunning
+      then do
+        T.putStrLn $ vmNameToText vmName <> ": already running"
+      else do
+        vmKeyPath <- getStateFile ctx vmName "vmkey"
+        exists <- doesFileExist vmKeyPath
+        when exists $ do
+          error $ vmKeyPath <> " already exists"
+        () <-
+          runWithErrorHandling $
+            -- todo: make runtime dep
+            Cradle.cmd "ssh-keygen"
+              & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
+        ph <- buildAndRun (nixVms ctx) ctx vmName
+        registerProcess ctx ph
+        pid <- getPid ph <&> fromMaybe (error "no pid")
+        state <- readState ctx vmName
+        writeState ctx vmName (state {pid = Just $ fromIntegral pid})
+        waitForVm ctx vmName
 
 stop :: Context -> VmName -> IO ()
 stop ctx vmName = do

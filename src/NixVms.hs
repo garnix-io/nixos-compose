@@ -23,9 +23,29 @@ import Prelude
 production :: NixVms
 production =
   NixVms
-    { buildAndRun = buildAndRunImpl,
+    { listVms = listVmsImpl,
+      buildAndRun = buildAndRunImpl,
       sshIntoHost = sshIntoHostImpl
     }
+
+listVmsImpl :: Context -> IO [VmName]
+listVmsImpl ctx = do
+  Cradle.StdoutRaw json <-
+    runWithErrorHandling $
+      Cradle.cmd "nix"
+        & Cradle.setWorkingDir (workingDir ctx)
+        & addArgs
+          ( nixStandardFlags
+              <> [ "eval",
+                   ".#nixosConfigurations",
+                   "--json",
+                   "--apply",
+                   "configs: builtins.attrNames configs" :: Text
+                 ]
+          )
+  case Aeson.eitherDecode' (cs json) of
+    Left err -> error err
+    Right (parsed :: [Text]) -> pure $ map VmName parsed
 
 buildAndRunImpl :: Context -> VmName -> IO ProcessHandle
 buildAndRunImpl ctx vmName = do
@@ -36,14 +56,14 @@ buildAndRunImpl ctx vmName = do
         Cradle.cmd "nix"
           & Cradle.setWorkingDir (workingDir ctx)
           & Cradle.addArgs
-            [ "--extra-experimental-features",
-              "nix-command flakes",
-              "eval",
-              ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
-              "--json",
-              "--apply",
-              "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
-            ]
+            ( nixStandardFlags
+                <> [ "eval",
+                     ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
+                     "--json",
+                     "--apply",
+                     "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
+                   ]
+            )
     let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
           Right t -> t
           Left err -> error err
@@ -52,13 +72,13 @@ buildAndRunImpl ctx vmName = do
       runWithErrorHandling $
         Cradle.cmd "nix"
           & Cradle.addArgs
-            [ "--extra-experimental-features",
-              "nix-command",
-              "build",
-              "--print-out-paths",
-              "--no-link",
-              drvPath <> "^*"
-            ]
+            ( nixStandardFlags
+                <> [ "build",
+                     "--print-out-paths",
+                     "--no-link",
+                     drvPath <> "^*"
+                   ]
+            )
           & Cradle.setWorkingDir (workingDir ctx)
 
     files <- listDirectory (cs outPath </> "bin")
@@ -83,6 +103,12 @@ buildAndRunImpl ctx vmName = do
             std_err = UseHandle stderrHandle
           }
     pure ph
+
+nixStandardFlags :: [Text]
+nixStandardFlags =
+  [ "--extra-experimental-features",
+    "nix-command flakes"
+  ]
 
 logStep :: Text -> IO a -> IO a
 logStep log action = do

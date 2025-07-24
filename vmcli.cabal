@@ -28,6 +28,8 @@ executable vmcli
       DeriveGeneric
       DerivingStrategies
       ImportQualifiedPost
+      LambdaCase
+      InstanceSigs
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -85,6 +87,8 @@ test-suite spec
       DeriveGeneric
       DerivingStrategies
       ImportQualifiedPost
+      LambdaCase
+      InstanceSigs
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels

@@ -16,7 +16,6 @@ import NixVms qualified
 import State (readState)
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
 import System.IO (SeekMode (..), hSeek)
 import Test.Hspec
@@ -29,6 +28,47 @@ withContext = TestUtils.withContext NixVms.production
 
 spec :: Spec
 spec = around_ inTempDirectory $ do
+  it "lists vms" $ do
+    withContext $ \ctx -> do
+      writeFile
+        (workingDir ctx </> "flake.nix")
+        [i|
+          {
+            inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
+            outputs = { nixpkgs, ... }: {
+              nixosConfigurations.a = (nixpkgs.lib.nixosSystem {
+                modules = [
+                  {
+                    networking.hostName = "a";
+                    nixpkgs.hostPlatform = "x86_64-linux";
+                    system.stateVersion = "24.11";
+                  }
+                ];
+              });
+              nixosConfigurations.b = (nixpkgs.lib.nixosSystem {
+                modules = [
+                  {
+                    networking.hostName = "b";
+                    nixpkgs.hostPlatform = "x86_64-linux";
+                    system.stateVersion = "24.11";
+                  }
+                ];
+              });
+              nixosConfigurations.c = (nixpkgs.lib.nixosSystem {
+                modules = [
+                  {
+                    networking.hostName = "c";
+                    nixpkgs.hostPlatform = "x86_64-linux";
+                    system.stateVersion = "24.11";
+                  }
+                ];
+              });
+            };
+          }
+        |]
+      result <- assertSuccess $ test ctx ["list"]
+      result ^. #stdout `shouldBe` "configured vms: a, b, c\n"
+
   it "starts vms" $ do
     withContext $ \ctx -> do
       writeStandardFlake ctx Nothing
@@ -64,9 +104,6 @@ spec = around_ inTempDirectory $ do
       _ <- assertSuccess $ test ctx ["start", "server"]
       files <- listDirectory "."
       files `shouldBe` []
-
-  it "does not reuse an outdated qcow2 image" $ do
-    pending
 
   it "starts vms with arbitrary hostnames" $ do
     withContext $ \ctx -> do
@@ -147,12 +184,6 @@ spec = around_ inTempDirectory $ do
       result <- assertSuccess $ test ctx ["status", "server"]
       result ^. #stdout `shouldBe` "WARN: cannot find process for vm: server\nserver: not running\n"
       listDirectory (ctx ^. #storageDir) `shouldReturn` []
-
-  it "`stop` cleans up in the storageDir" $ do
-    pending
-
-  it "prints a help text with all commands when running with no arguments" $ do
-    pending
 
 writeStandardFlake :: Context -> Maybe Text -> IO ()
 writeStandardFlake ctx addedModule = do

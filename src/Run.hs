@@ -5,7 +5,6 @@ import Context
 import Context.Production qualified
 import Control.Exception (SomeException, fromException)
 import Control.Exception.Safe (try)
-import Cradle (ExitCode (..))
 import Data.String.Conversions (cs)
 import Data.Text hiding (elem)
 import Options
@@ -26,6 +25,7 @@ run ctx args =
   handleExceptions $ do
     (Options opts) <- handleParseResult $ execParserPure (prefs showHelpOnError) parser (cs <$> args)
     case opts of
+      List -> list ctx
       Start vmNames -> start ctx vmNames
       Stop vmName -> stop ctx vmName
       Ssh vmName command -> ssh ctx vmName command

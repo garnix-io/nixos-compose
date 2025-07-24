@@ -1,7 +1,7 @@
 module State where
 
 import Context
-import Control.Monad (filterM, unless)
+import Control.Monad (filterM)
 import Data.Aeson
 import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
