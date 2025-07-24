@@ -15,7 +15,7 @@ import NixVms qualified
 import Options (VmName (..))
 import State (readState)
 import StdLib
-import System.Directory (doesDirectoryExist, listDirectory)
+import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
 import System.FilePath ((</>))
 import System.IO (SeekMode (..), hSeek)
 import Test.Hspec
@@ -187,6 +187,17 @@ spec = around_ inTempDirectory $ do
       _ <- assertSuccess $ test ctx ["start", "server"]
       result <- assertSuccess $ test ctx ["start", "server"]
       result ^. #stdout `shouldBe` "server: already running\n"
+
+  describe "networking" $ do
+    repoRoot <- runIO getCurrentDirectory
+    it "allows to talk from one vm to the other by static ip" $ do
+      withContext $ \ctx -> do
+        copyFile (repoRoot </> "spec/static-ips/flake.nix") (workingDir ctx </> "flake.nix")
+        _ <- assertSuccess $ test ctx ["start", "a", "b"]
+        result <- assertSuccess (test ctx ["ssh", "a", "ping -c 1 10.0.0.6"])
+        result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
+        result <- assertSuccess (test ctx ["ssh", "b", "ping -c 1 10.0.0.5"])
+        result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
 
 writeStandardFlake :: Context -> Maybe Text -> IO ()
 writeStandardFlake ctx addedModule = do
