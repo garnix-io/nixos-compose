@@ -6,6 +6,7 @@ module IntegrationSpec where
 import Context
 import Control.Concurrent (readMVar)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
+import Cradle qualified
 import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions
@@ -105,6 +106,14 @@ spec = around_ inTempDirectory $ do
       _ <- assertSuccess $ test ctx ["start", "server"]
       files <- listDirectory "."
       files `shouldBe` []
+
+  it "`vmcli start` doesn't mess up the terminal" $ do
+    withContext $ \ctx -> do
+      writeStandardFlake ctx Nothing
+      Cradle.StdoutRaw before <- Cradle.run $ Cradle.cmd "stty" & Cradle.addArgs ["-a" :: Text]
+      _ <- assertSuccess $ test ctx ["start", "server"]
+      Cradle.StdoutRaw after <- Cradle.run $ Cradle.cmd "stty" & Cradle.addArgs ["-a" :: Text]
+      after `shouldBe` before
 
   it "starts vms with arbitrary hostnames" $ do
     withContext $ \ctx -> do
