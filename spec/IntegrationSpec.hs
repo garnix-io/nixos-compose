@@ -117,7 +117,7 @@ spec = around_ inTempDirectory $ do
       _ <- assertSuccess $ test ctx ["start", "server"]
       B.hPutStr ctx.stdin "echo foo\nexit\n"
       hSeek ctx.stdin AbsoluteSeek 0
-      (stdout <$> assertSuccess (test ctx ["ssh", "server"])) `shouldReturn` "foo\n"
+      (stdout <$> assertSuccess (test ctx ["ssh", "server"])) `shouldReturn` "foo\n\ESC]0;\a"
 
   it "can start multiple vms" $ do
     withContext $ \ctx -> do
