@@ -8,6 +8,7 @@ import Control.Exception (finally)
 import Cradle qualified
 import Data.String (IsString)
 import Data.String.Conversions
+import Data.Text qualified as T
 import GHC.Exts (IsString (..))
 import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
@@ -104,9 +105,10 @@ withMockContext vmNames action = do
                   [] -> error "nix vm mock: sshIntoHost: no args given"
                   command : args ->
                     withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                      -- this emulates ssh's behavior
                       Cradle.run $
-                        Cradle.cmd (cs command)
-                          & Cradle.addArgs args
+                        Cradle.cmd "bash"
+                          & Cradle.addArgs ["-c", T.unwords (command : args)]
                           & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action
