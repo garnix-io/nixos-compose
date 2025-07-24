@@ -34,14 +34,14 @@ spec = around_ inTempDirectory $ do
         (workingDir ctx </> "flake.nix")
         [i|
           {
-            inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
+            inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
             outputs = { nixpkgs, ... }: {
               nixosConfigurations.a = (nixpkgs.lib.nixosSystem {
                 modules = [
                   {
                     networking.hostName = "a";
                     nixpkgs.hostPlatform = "x86_64-linux";
-                    system.stateVersion = "24.11";
+                    system.stateVersion = "25.05";
                   }
                 ];
               });
@@ -50,7 +50,7 @@ spec = around_ inTempDirectory $ do
                   {
                     networking.hostName = "b";
                     nixpkgs.hostPlatform = "x86_64-linux";
-                    system.stateVersion = "24.11";
+                    system.stateVersion = "25.05";
                   }
                 ];
               });
@@ -59,7 +59,7 @@ spec = around_ inTempDirectory $ do
                   {
                     networking.hostName = "c";
                     nixpkgs.hostPlatform = "x86_64-linux";
-                    system.stateVersion = "24.11";
+                    system.stateVersion = "25.05";
                   }
                 ];
               });
@@ -125,14 +125,14 @@ spec = around_ inTempDirectory $ do
         (workingDir ctx </> "flake.nix")
         [i|
           {
-            inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
+            inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
             outputs = { nixpkgs, ... }: {
               nixosConfigurations.a = (nixpkgs.lib.nixosSystem {
                 modules = [
                   {
                     networking.hostName = "a";
                     nixpkgs.hostPlatform = "x86_64-linux";
-                    system.stateVersion = "24.11";
+                    system.stateVersion = "25.05";
                   }
                 ];
               });
@@ -141,7 +141,7 @@ spec = around_ inTempDirectory $ do
                   {
                     networking.hostName = "b";
                     nixpkgs.hostPlatform = "x86_64-linux";
-                    system.stateVersion = "24.11";
+                    system.stateVersion = "25.05";
                   }
                 ];
               });
@@ -192,14 +192,14 @@ writeStandardFlake ctx addedModule = do
         cs
           [i|
             {
-              inputs.nixpkgs.url = "github:nixos/nixpkgs/2f913f37ac91d3dda25c9259f17dbedcf908a157";
+              inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
               outputs = { nixpkgs, ... }: {
                 nixosConfigurations.server = (nixpkgs.lib.nixosSystem {
                   modules = [
                     {
                       networking.hostName = "server";
                       nixpkgs.hostPlatform = "x86_64-linux";
-                      system.stateVersion = "24.11";
+                      system.stateVersion = "25.05";
                     }
                     (#{fromMaybe emptyModule addedModule})
                   ];
@@ -208,3 +208,6 @@ writeStandardFlake ctx addedModule = do
             }
           |]
   T.writeFile (ctx.workingDir </> "flake.nix") flake
+
+nixpkgs2505Commit :: Text
+nixpkgs2505Commit = "3ff0e34b1383648053bba8ed03f201d3466f90c9"
