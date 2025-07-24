@@ -143,6 +143,7 @@ runVm ctx verbosity vmName vmExecutable = do
   let mkProc stdout stdin =
         (System.Process.proc vmExecutable [])
           { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
+            std_in = CreatePipe,
             std_out = stdout,
             std_err = stdin
           }
