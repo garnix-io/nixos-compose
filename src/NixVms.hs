@@ -137,7 +137,7 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
 runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
 runVm ctx verbosity vmName vmExecutable = do
   storageDir <- getStateDir ctx vmName
-  let nixDiskImage = storageDir </> cs (vmNameToText vmName) </> "image.qcow2"
+  let nixDiskImage = storageDir </> "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
   let mkProc stdout stdin =
