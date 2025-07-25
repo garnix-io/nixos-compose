@@ -94,6 +94,7 @@
               runtimeInputs = [
                 pkgs.cabal-install
                 pkgs.coreutils
+                pkgs.util-linux
                 ghcWithDeps
               ] ++
               runtimeDeps;
@@ -103,7 +104,7 @@
                 cd "$dir"
                 cp -r ${devSrc}/. .
                 chmod -R a+w .
-                cabal run spec --ghc-option=-Werror -- --strict
+                script -c "cabal run spec --ghc-option=-Werror -- --strict" /dev/null
               '';
             });
           };
