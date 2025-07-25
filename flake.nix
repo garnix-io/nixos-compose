@@ -35,6 +35,7 @@
           ];
         });
         runtimeDeps = [ pkgs.openssh pkgs.nix ];
+        testDeps = [ pkgs.coreutils pkgs.bash pkgs.tree ];
         ghcWithDeps =
           (
             let
@@ -85,59 +86,57 @@
               touch $out
             '';
         };
-        apps =
-          let testDeps = [ pkgs.coreutils pkgs.bash ];
-          in {
-            spec = {
+        apps = {
+          spec = {
+            type = "app";
+            program = pkgs.lib.getExe (pkgs.writeShellApplication {
+              name = "spec";
+              inheritPath = false;
+              runtimeInputs = [
+                ghcWithDeps
+                pkgs.cabal-install
+              ] ++
+              runtimeDeps ++
+              testDeps;
+              text = ''
+                dir=$(mktemp -d)
+                trap 'rm -r $dir' EXIT
+                cd "$dir"
+                cp -r ${devSrc}/. .
+                chmod -R a+w .
+                cabal run spec --ghc-option=-Werror -- --strict
+              '';
+            });
+          };
+          watch =
+            {
               type = "app";
               program = pkgs.lib.getExe (pkgs.writeShellApplication {
-                name = "spec";
+                name = "watch";
                 inheritPath = false;
                 runtimeInputs = [
                   ghcWithDeps
                   pkgs.cabal-install
+                  pkgs.ghcid
+                  pkgs.hpack
                 ] ++
                 runtimeDeps ++
                 testDeps;
                 text = ''
-                  dir=$(mktemp -d)
-                  trap 'rm -r $dir' EXIT
-                  cd "$dir"
-                  cp -r ${devSrc}/. .
-                  chmod -R a+w .
-                  cabal run spec --ghc-option=-Werror -- --strict
+                  hpack
+                  ghcid \
+                    --command "cabal repl test:spec" \
+                    --allow-eval \
+                    --test ":main --skip Integration $*" \
+                    --warnings \
                 '';
               });
             };
-            watch =
-              {
-                type = "app";
-                program = pkgs.lib.getExe (pkgs.writeShellApplication {
-                  name = "watch";
-                  inheritPath = false;
-                  runtimeInputs = [
-                    ghcWithDeps
-                    pkgs.cabal-install
-                    pkgs.ghcid
-                    pkgs.hpack
-                  ] ++
-                  runtimeDeps ++
-                  testDeps;
-                  text = ''
-                    hpack
-                    ghcid \
-                      --command "cabal repl test:spec" \
-                      --allow-eval \
-                      --test ":main --skip Integration $*" \
-                      --warnings \
-                  '';
-                });
-              };
 
-          };
+        };
         devShells = {
           default = pkgs.mkShell {
-            buildInputs = with pkgs; [
+            buildInputs = with pkgs; ([
               (haskell-language-server.override { dynamic = true; })
               ghcWithDeps
               cabal-install
@@ -149,7 +148,9 @@
               nixpkgs-fmt
               ormolu
               packages.default.buildInputs
-            ];
+            ] ++
+            runtimeDeps ++
+            testDeps);
           };
         };
       }

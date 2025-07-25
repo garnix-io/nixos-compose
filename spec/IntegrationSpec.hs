@@ -6,10 +6,12 @@ module IntegrationSpec where
 import Context
 import Control.Concurrent (readMVar)
 import Control.Concurrent.MVar (newEmptyMVar, putMVar)
+import Cradle qualified
 import Data.ByteString qualified as B
 import Data.Maybe (fromMaybe)
 import Data.String.Conversions
 import Data.String.Interpolate (i)
+import Data.String.Interpolate.Util (unindent)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import NixVms qualified
@@ -99,12 +101,29 @@ spec = around_ inTempDirectory $ do
       cs (stderr result) `shouldContain` "Building NixOS config...\nCommand exited with code 1"
       cs (stderr result) `shouldContain` "does not provide attribute 'packages.x86_64-linux.nixosConfigurations.\"does-not-exist\""
 
-  it "does not leave a qcow2 image lying around" $ do
+  it "stores the qcow2 image and other files in the storage dir" $ do
     withContext $ \ctx -> do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["start", "server"]
       files <- listDirectory "."
       files `shouldBe` []
+      Cradle.StdoutRaw stdout <- Cradle.run $ Cradle.cmd "tree" & Cradle.setWorkingDir (ctx ^. #storageDir)
+      let expected =
+            unindent
+              [i|
+                .
+                └── server
+                    ├── server
+                    │   └── image.qcow2
+                    ├── state.json
+                    ├── stderr.log
+                    ├── stdout.log
+                    ├── vmkey
+                    └── vmkey.pub
+
+                3 directories, 6 files
+              |]
+      cs stdout `shouldBe` expected
 
   it "starts vms with arbitrary hostnames" $ do
     withContext $ \ctx -> do
