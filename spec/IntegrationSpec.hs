@@ -113,15 +113,14 @@ spec = around_ inTempDirectory $ do
               [i|
                 .
                 └── server
-                    ├── server
-                    │   └── image.qcow2
+                    ├── image.qcow2
                     ├── state.json
                     ├── stderr.log
                     ├── stdout.log
                     ├── vmkey
                     └── vmkey.pub
 
-                3 directories, 6 files
+                2 directories, 6 files
               |]
       cs stdout `shouldBe` expected
 
