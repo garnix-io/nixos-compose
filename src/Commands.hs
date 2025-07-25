@@ -15,7 +15,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
-import Options (StartOptions (..))
+import Options (StartOptions (..), Verbosity, VmName (..))
 import State
 import StdLib
 import System.Directory (doesFileExist)
@@ -32,8 +32,8 @@ list ctx = do
     [] -> "no vms configured"
     vms -> "configured vms: " <> T.intercalate ", " (map vmNameToText vms)
 
-start :: Context -> StartOptions -> IO ()
-start ctx startOptions = do
+start :: Context -> Verbosity -> StartOptions -> IO ()
+start ctx verbosity startOptions = do
   vmNames <- case startOptions of
     StartAll -> do
       vmNames <- listVms (nixVms ctx) ctx
@@ -57,7 +57,7 @@ start ctx startOptions = do
             -- todo: make runtime dep
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-        ph <- buildAndRun (nixVms ctx) ctx vmName
+        ph <- buildAndRun (nixVms ctx) ctx verbosity vmName
         registerProcess ctx ph
         pid <- getPid ph <&> fromMaybe (error "no pid")
         state <- readState ctx vmName

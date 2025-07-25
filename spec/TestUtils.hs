@@ -10,6 +10,7 @@ import Data.String (IsString)
 import Data.String.Conversions
 import GHC.Exts (IsString (..))
 import Network.Socket.Free (getFreePort)
+import Options (VmName (..))
 import Run (run)
 import State
 import StdLib
@@ -80,7 +81,7 @@ withMockContext vmNames action = do
         NixVms
           { listVms = \_ctx -> pure vmNames,
             buildAndRun =
-              \ctx vmName -> do
+              \ctx _verbosity vmName -> do
                 unless (vmName `elem` vmNames) $ do
                   error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do

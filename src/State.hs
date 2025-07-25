@@ -5,6 +5,7 @@ import Control.Monad (filterM)
 import Data.Aeson
 import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
+import Options (VmName (..))
 import StdLib
 import System.Directory
   ( createDirectoryIfMissing,

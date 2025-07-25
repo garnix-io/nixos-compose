@@ -1,6 +1,7 @@
 module Context where
 
 import Cradle qualified
+import Options (Verbosity, VmName)
 import StdLib
 import System.IO
 import System.Process
@@ -16,9 +17,6 @@ data Context = Context
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
-    buildAndRun :: Context -> VmName -> IO ProcessHandle,
+    buildAndRun :: Context -> Verbosity -> VmName -> IO ProcessHandle,
     sshIntoHost :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
   }
-
-newtype VmName = VmName {vmNameToText :: Text}
-  deriving stock (Eq, Show, Ord)
