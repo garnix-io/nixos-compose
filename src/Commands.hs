@@ -9,7 +9,6 @@ where
 
 import Context
 import Control.Concurrent (threadDelay)
-import Control.Monad (forM_)
 import Cradle
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Maybe (fromMaybe)
@@ -81,7 +80,8 @@ waitForVm ctx vmName = do
 
 ssh :: Context -> VmName -> [Text] -> IO ()
 ssh ctx vmName command = do
-  sshIntoHost (nixVms ctx) ctx vmName command
+  exitCode :: ExitCode <- sshIntoHost (nixVms ctx) ctx vmName command
+  throwIO exitCode
 
 status :: Context -> [VmName] -> IO ()
 status ctx vmName = do

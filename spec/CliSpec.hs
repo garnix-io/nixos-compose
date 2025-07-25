@@ -57,3 +57,21 @@ spec = do
         withMockContext [] $ \ctx -> do
           result <- test ctx ["start", "--all"]
           result `shouldBe` TestResult "" "No vms are defined. Nothing to do.\n" (ExitFailure 1)
+
+  describe "ssh" $ do
+    let cases =
+          [ (["true"], ExitSuccess),
+            (["false"], ExitFailure 1),
+            (["--", "bash", "-c", "'exit 42'"], ExitFailure 42)
+          ]
+    forM_ cases $ \(command, exitCode) ->
+      it ("relays the exit code " <> show exitCode) $ do
+        withMockContext ["a"] $ \ctx -> do
+          _ <- assertSuccess $ test ctx ["start", "a"]
+          result <- test ctx (["ssh", "a"] <> command)
+          result
+            `shouldBe` TestResult
+              { exitCode,
+                stdout = "",
+                stderr = ""
+              }

@@ -85,54 +85,56 @@
               touch $out
             '';
         };
-        apps = {
-          spec = {
-            type = "app";
-            program = pkgs.lib.getExe (pkgs.writeShellApplication {
-              name = "spec";
-              inheritPath = false;
-              runtimeInputs = [
-                pkgs.cabal-install
-                pkgs.coreutils
-                ghcWithDeps
-              ] ++
-              runtimeDeps;
-              text = ''
-                dir=$(mktemp -d)
-                trap 'rm -r $dir' EXIT
-                cd "$dir"
-                cp -r ${devSrc}/. .
-                chmod -R a+w .
-                cabal run spec --ghc-option=-Werror -- --strict
-              '';
-            });
-          };
-          watch =
-            {
+        apps =
+          let testDeps = [ pkgs.coreutils pkgs.bash ];
+          in {
+            spec = {
               type = "app";
               program = pkgs.lib.getExe (pkgs.writeShellApplication {
-                name = "watch";
+                name = "spec";
                 inheritPath = false;
                 runtimeInputs = [
                   ghcWithDeps
                   pkgs.cabal-install
-                  pkgs.coreutils
-                  pkgs.ghcid
-                  pkgs.hpack
                 ] ++
-                runtimeDeps;
+                runtimeDeps ++
+                testDeps;
                 text = ''
-                  hpack
-                  ghcid \
-                    --command "cabal repl test:spec" \
-                    --allow-eval \
-                    --test ":main --skip Integration $*" \
-                    --warnings \
+                  dir=$(mktemp -d)
+                  trap 'rm -r $dir' EXIT
+                  cd "$dir"
+                  cp -r ${devSrc}/. .
+                  chmod -R a+w .
+                  cabal run spec --ghc-option=-Werror -- --strict
                 '';
               });
             };
+            watch =
+              {
+                type = "app";
+                program = pkgs.lib.getExe (pkgs.writeShellApplication {
+                  name = "watch";
+                  inheritPath = false;
+                  runtimeInputs = [
+                    ghcWithDeps
+                    pkgs.cabal-install
+                    pkgs.ghcid
+                    pkgs.hpack
+                  ] ++
+                  runtimeDeps ++
+                  testDeps;
+                  text = ''
+                    hpack
+                    ghcid \
+                      --command "cabal repl test:spec" \
+                      --allow-eval \
+                      --test ":main --skip Integration $*" \
+                      --warnings \
+                  '';
+                });
+              };
 
-        };
+          };
         devShells = {
           default = pkgs.mkShell {
             buildInputs = with pkgs; [
