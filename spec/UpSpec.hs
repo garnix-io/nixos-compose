@@ -5,12 +5,14 @@ import Control.Concurrent (myThreadId, newEmptyMVar, putMVar, readMVar, threadDe
 import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
+import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), readState, readVmState)
+import State (VmState (..), getVmFilePath, readState, readVmState)
 import StdLib
 import System.IO qualified
+import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Test.Hspec
 import TestUtils
 
@@ -119,3 +121,65 @@ spec = do
           waitFor $ do
             (^. #vms) <$> readState ctx `shouldReturn` mempty
             (^. #vde) <$> readState ctx `shouldReturn` Nothing
+
+  describe "when the vm script terminates unexpectedly" $ do
+    let failingRunVm :: Int -> Context -> Context
+        failingRunVm exitCode context =
+          context
+            & (#nixVms . #runVm)
+            .~ ( \ctx _verbosity vmName _vmScript -> do
+                   stdoutLog <- getVmFilePath ctx vmName "stdout.log"
+                   T.writeFile stdoutLog "test stdout"
+                   stderrLog <- getVmFilePath ctx vmName "stderr.log"
+                   T.writeFile stderrLog "test stderr"
+                   (_, _, _, ph) <- do
+                     createProcess
+                       (proc "bash" ["-c", "sleep 0.01; exit " <> show exitCode])
+                         { std_in = NoStream,
+                           std_out = NoStream,
+                           std_err = NoStream
+                         }
+                   pure ph
+               )
+            & (#nixVms . #sshIntoVm)
+            .~ SshIntoVm
+              ( \_ctx _vmName _command -> do
+                  threadDelay 10_000
+                  Cradle.run $
+                    Cradle.cmd "bash"
+                      & Cradle.addArgs ["-c", "exit 255" :: Text]
+              )
+
+    it "shows the script output, when the script fails" $ do
+      withMockContext ["a"] $ \(failingRunVm 42 -> ctx) -> do
+        test ctx ["up", "a"]
+          `shouldReturn` TestResult
+            ""
+            ( T.unlines
+                [ "Building NixOS config...",
+                  "Done",
+                  "Starting VM...",
+                  "VM failed to start:",
+                  "",
+                  "test stdout",
+                  "test stderr"
+                ]
+            )
+            (ExitFailure 42)
+
+    it "shows the script output, when the script exits with exit code 0" $ do
+      withMockContext ["a"] $ \(failingRunVm 0 -> ctx) -> do
+        test ctx ["up", "a"]
+          `shouldReturn` TestResult
+            ""
+            ( T.unlines
+                [ "Building NixOS config...",
+                  "Done",
+                  "Starting VM...",
+                  "VM failed to start:",
+                  "",
+                  "test stdout",
+                  "test stderr"
+                ]
+            )
+            (ExitFailure 1)

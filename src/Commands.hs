@@ -9,7 +9,6 @@ module Commands
 where
 
 import Context
-import Control.Concurrent (threadDelay)
 import Control.Exception.Safe (onException)
 import Cradle
 import Data.List.NonEmpty (NonEmpty (..))
@@ -23,7 +22,7 @@ import StdLib
 import System.Directory (doesFileExist)
 import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
-import System.Process (getPid)
+import System.Process (ProcessHandle, getPid, getProcessExitCode)
 import Utils
 import Prelude
 
@@ -51,7 +50,7 @@ up ctx verbosity upOptions = do
     case existing of
       Left existing -> T.putStrLn $ vmNameToText vmName <> ": already " <> vmStateToText existing
       Right () -> do
-        (pid, port) <- removeVmWhenFailing ctx vmName $ do
+        (ph, pid, port) <- removeVmWhenFailing ctx vmName $ do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
           exists <- doesFileExist vmKeyPath
           when exists $ do
@@ -67,9 +66,9 @@ up ctx verbosity upOptions = do
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
-          pure (pid, port)
+          pure (ph, pid, port)
         State.writeVmState ctx vmName (Running {pid, port, ip})
-        waitForVm ctx vmName
+        waitForVm ctx vmName ph
         T.hPutStrLn stderr "Done"
   updateVmHostEntries ctx
 
@@ -102,12 +101,24 @@ down ctx vmNames = do
           signalProcess sigKILL pid
           removeVm ctx vmName
 
-waitForVm :: Context -> VmName -> IO ()
-waitForVm ctx vmName = do
-  (StdoutRaw _, StderrRaw _, exitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName "true"
-  when (exitCode /= Cradle.ExitSuccess) $ do
-    threadDelay 1_000_000
-    waitForVm ctx vmName
+waitForVm :: Context -> VmName -> ProcessHandle -> IO ()
+waitForVm ctx vmName ph = do
+  (StdoutRaw _, StderrRaw _, sshExitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName "true"
+  case sshExitCode of
+    ExitSuccess -> pure ()
+    ExitFailure _ -> do
+      vmScriptExitCode <- getProcessExitCode ph
+      case vmScriptExitCode of
+        Nothing -> waitForVm ctx vmName ph
+        Just vmScriptExitCode -> do
+          T.hPutStrLn stderr "VM failed to start:\n"
+          stdoutLog <- getVmFilePath ctx vmName "stdout.log"
+          T.readFile stdoutLog >>= T.hPutStrLn stderr
+          stderrLog <- getVmFilePath ctx vmName "stderr.log"
+          T.readFile stderrLog >>= T.hPutStrLn stderr
+          throwIO $ case vmScriptExitCode of
+            ExitSuccess -> ExitFailure 1
+            vmScriptExitCode -> vmScriptExitCode
 
 ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
