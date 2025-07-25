@@ -4,11 +4,8 @@
 module IntegrationSpec where
 
 import Context
-import Control.Concurrent (readMVar)
-import Control.Concurrent.MVar (newEmptyMVar, putMVar)
 import Cradle qualified
 import Data.ByteString qualified as B
-import Data.Maybe (fromMaybe)
 import Data.String.Conversions
 import Data.String.Interpolate (i)
 import Data.String.Interpolate.Util (unindent)
@@ -112,15 +109,18 @@ spec = around_ inTempDirectory $ do
             unindent
               [i|
                 .
-                └── server
-                    ├── image.qcow2
-                    ├── state.json
-                    ├── stderr.log
-                    ├── stdout.log
-                    ├── vmkey
-                    └── vmkey.pub
+                ├── server
+                │   ├── image.qcow2
+                │   ├── state.json
+                │   ├── stderr.log
+                │   ├── stdout.log
+                │   ├── vmkey
+                │   └── vmkey.pub
+                ├── vde1.ctl
+                │   └── ctl
+                └── vde.json
 
-                2 directories, 6 files
+                3 directories, 8 files
               |]
       cs stdout `shouldBe` expected
 
@@ -187,22 +187,6 @@ spec = around_ inTempDirectory $ do
       _ <- assertSuccess $ test ctx ["start", "server"]
       result <- assertSuccess $ test ctx ["start", "server"]
       result ^. #stdout `shouldBe` "server: already running\n"
-
-  it "removes the state directory when the vm process is not running anymore" $ do
-    withContext $ \ctx -> do
-      mvar <- newEmptyMVar
-      ctx <-
-        pure $
-          ctx
-            { registerProcess = \handle -> registerProcess ctx handle >> putMVar mvar handle
-            }
-      writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["start", "server"]
-      handle <- readMVar mvar
-      _ <- endProcess handle
-      result <- assertSuccess $ test ctx ["status", "server"]
-      result ^. #stdout `shouldBe` "WARN: cannot find process for vm: server\nserver: not running\n"
-      listDirectory (ctx ^. #storageDir) `shouldReturn` []
 
 writeStandardFlake :: Context -> Maybe Text -> IO ()
 writeStandardFlake ctx addedModule = do

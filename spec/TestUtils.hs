@@ -6,6 +6,7 @@ import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
 import Cradle qualified
+import Data.Maybe (isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -15,7 +16,9 @@ import Options (VmName (..))
 import Run (run)
 import State
 import StdLib
+import System.Environment (lookupEnv)
 import System.FilePath ((</>))
+import System.IO (hPutStr)
 import System.IO qualified
 import System.IO.Silently
 import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
@@ -48,6 +51,10 @@ assertSuccess action = do
 test :: Context -> [Text] -> IO TestResult
 test ctx args = do
   (stderr, (stdout, exitCode)) <- hCapture [System.IO.stderr] $ capture $ run ctx args
+  debugEnvVar <- lookupEnv "DEBUG"
+  when (isJust debugEnvVar) $ do
+    putStr stdout
+    hPutStr System.IO.stderr stderr
   pure $ TestResult (cs stdout) (cs stderr) exitCode
 
 withContext :: NixVms -> (Context -> IO a) -> IO a

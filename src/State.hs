@@ -1,8 +1,25 @@
-module State where
+module State
+  ( VmState (..),
+    writeState,
+    readState,
+    getStateDir,
+    getStateFile,
+    listRunningVms,
+    removeState,
+
+    -- * vde state
+    VdeState (..),
+    readVdeState,
+    modifyVdeState,
+    getVdeCtlDir,
+  )
+where
 
 import Context
 import Control.Monad (filterM)
 import Data.Aeson
+import Data.ByteString.Lazy qualified
+import Data.Int (Int64)
 import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
 import Options (VmName (..))
@@ -12,8 +29,12 @@ import System.Directory
     doesDirectoryExist,
     listDirectory,
     removeDirectoryRecursive,
+    removeFile,
   )
+import System.FileLock
 import System.FilePath ((</>))
+
+-- * vm state
 
 data VmState = VmState
   { port :: Int,
@@ -25,7 +46,12 @@ data VmState = VmState
 listRunningVms :: Context -> IO [VmName]
 listRunningVms ctx = do
   createDirectoryIfMissing True (storageDir ctx)
-  vms <- fmap (VmName . cs) <$> listDirectory (storageDir ctx)
+  vms <-
+    listDirectory (storageDir ctx)
+      <&> fmap (VmName . cs)
+      -- todo: put vm dirs in subdirectory
+      -- todo: put vde paths in subdirectory
+      . filter (\dir -> dir `notElem` ["vde.json", "vde1.ctl"])
   filterM (isRunning ctx) vms
 
 isRunning :: Context -> VmName -> IO Bool
@@ -61,3 +87,47 @@ getStateDir ctx (VmName vmName) = do
   let dir = storageDir ctx </> cs vmName
   createDirectoryIfMissing True dir
   pure dir
+
+-- global vde switch state
+
+newtype VdeState = VdeState
+  { pid :: Int64
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
+
+readVdeState :: Context -> IO (Maybe VdeState)
+readVdeState ctx = do
+  file <- getVdeFile ctx
+  withFileLock file Shared $ \_lock -> do
+    contents <- T.readFile file
+    pure $
+      if contents == ""
+        then Nothing
+        else Just (either error id (eitherDecode' (cs contents) :: Either String VdeState))
+
+modifyVdeState :: Context -> (Maybe VdeState -> IO (Maybe VdeState)) -> IO ()
+modifyVdeState ctx action = do
+  file <- getVdeFile ctx
+  withFileLock file Exclusive $ \_lock -> do
+    contents <- T.readFile file
+    let previous =
+          if contents == ""
+            then Nothing
+            else Just (either error id (eitherDecode' (cs contents) :: Either String VdeState))
+    next <- action previous
+    case next of
+      Just next -> Data.ByteString.Lazy.writeFile file (encode (next :: VdeState))
+      Nothing -> removeFile file
+
+getVdeFile :: Context -> IO FilePath
+getVdeFile ctx = do
+  let dir = storageDir ctx
+  createDirectoryIfMissing True dir
+  pure $ dir </> "vde.json"
+
+getVdeCtlDir :: Context -> IO FilePath
+getVdeCtlDir ctx = do
+  let ctlDir = storageDir ctx </> "vde1.ctl"
+  createDirectoryIfMissing True ctlDir
+  pure ctlDir
