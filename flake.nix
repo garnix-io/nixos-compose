@@ -94,7 +94,7 @@
               runtimeInputs = [
                 pkgs.cabal-install
                 pkgs.coreutils
-                pkgs.util-linux
+                pkgs.socat
                 ghcWithDeps
               ] ++
               runtimeDeps;
@@ -104,7 +104,7 @@
                 cd "$dir"
                 cp -r ${devSrc}/. .
                 chmod -R a+w .
-                script -c "cabal run spec --ghc-option=-Werror -- --strict" /dev/null
+                socat - EXEC:"cabal run spec --ghc-option=-Werror -- --strict",pty,setsid,ctty
               '';
             });
           };
