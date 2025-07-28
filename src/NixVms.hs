@@ -52,7 +52,12 @@ listVmsImpl ctx = do
 
 buildAndRunImpl :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port)
 buildAndRunImpl ctx verbosity vmName = do
-  (vmExecutable, port) <- logStep "Building NixOS config..." $ do
+  (vmExecutable, port) <- buildImpl ctx vmName
+  (,port) <$> runImpl ctx verbosity vmName vmExecutable
+
+buildImpl :: Context -> VmName -> IO (FilePath, Port)
+buildImpl ctx vmName = do
+  logStep "Building NixOS config..." $ do
     port <- getFreePort
     moduleExtensions <- getModuleExtensions ctx vmName port
     (Cradle.StdoutTrimmed drvPathJson) <-
@@ -89,9 +94,11 @@ buildAndRunImpl ctx verbosity vmName = do
     case files of
       [file] -> pure (cs outPath </> "bin" </> file, port)
       files -> error $ "expected one vm script: " <> show files
+
+runImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runImpl ctx verbosity vmName vmExecutable = do
   logStep "Starting VM..." $ do
-    handle <- runVm ctx verbosity vmName vmExecutable
-    pure (handle, port)
+    runVm ctx verbosity vmName vmExecutable
 
 nixStandardFlags :: [Text]
 nixStandardFlags =

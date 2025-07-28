@@ -50,6 +50,7 @@ default-extensions:
   - QuasiQuotes
   - RankNTypes
   - ScopedTypeVariables
+  - TupleSections
   - ViewPatterns
 
 dependencies:
