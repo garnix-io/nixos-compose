@@ -140,12 +140,12 @@ runVm ctx verbosity vmName vmExecutable = do
   let nixDiskImage = storageDir </> "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
-  let mkProc stdout stdin =
+  let mkProc stdout stderr =
         (System.Process.proc vmExecutable [])
           { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
             std_in = CreatePipe,
             std_out = stdout,
-            std_err = stdin
+            std_err = stderr
           }
   proc <- case verbosity of
     DefaultVerbosity -> do
