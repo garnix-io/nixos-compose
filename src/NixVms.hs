@@ -40,10 +40,16 @@ listVmsImpl ctx = do
         & addArgs
           ( nixStandardFlags
               <> [ "eval",
-                   ".#nixosConfigurations",
+                   ".#.",
                    "--json",
                    "--apply",
-                   "configs: builtins.attrNames configs" :: Text
+                   cs
+                     [i|
+                      outputs:
+                        if outputs ? "nixosConfigurations"
+                          then builtins.attrNames outputs.nixosConfigurations
+                          else []
+                     |]
                  ]
           )
   case Aeson.eitherDecode' (cs json) of
