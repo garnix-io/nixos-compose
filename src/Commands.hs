@@ -10,6 +10,7 @@ where
 
 import Context
 import Control.Concurrent (threadDelay)
+import Control.Exception.Safe (SomeException, try)
 import Cradle
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
@@ -50,23 +51,36 @@ up ctx verbosity upOptions = do
     case existing of
       Left existing -> T.putStrLn $ vmNameToText vmName <> ": already " <> vmStateToText existing
       Right () -> do
-        vmKeyPath <- getVmFilePath ctx vmName "vmkey"
-        exists <- doesFileExist vmKeyPath
-        when exists $ do
-          error $ vmKeyPath <> " already exists"
-        () <-
-          runWithErrorHandling $
-            Cradle.cmd "ssh-keygen"
-              & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-        (vmScript, port) <- logStep "Building NixOS config..." $ do
-          buildVmScript (nixVms ctx) ctx vmName ip
-        logStep "Starting VM..." $ do
+        (pid, port) <- removeVmWhenFailing ctx vmName $ do
+          vmKeyPath <- getVmFilePath ctx vmName "vmkey"
+          exists <- doesFileExist vmKeyPath
+          when exists $ do
+            error $ vmKeyPath <> " already exists"
+          () <-
+            runWithErrorHandling $
+              Cradle.cmd "ssh-keygen"
+                & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
+          T.hPutStrLn stderr "Building NixOS config..."
+          (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
+          T.hPutStrLn System.IO.stderr "Done"
+          T.hPutStrLn stderr "Starting VM..."
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
-          State.writeVmState ctx vmName (Running {pid = fromIntegral pid, port, ip})
-          waitForVm ctx vmName
+          pure (pid, port)
+        State.writeVmState ctx vmName (Running {pid = fromIntegral pid, port, ip})
+        waitForVm ctx vmName
+        T.hPutStrLn System.IO.stderr "Done"
   updateVmHostEntries ctx
+
+removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
+removeVmWhenFailing ctx vmName action = do
+  result :: Either SomeException a <- try action
+  case result of
+    Left e -> do
+      State.removeVm ctx vmName
+      throwIO e
+    Right a -> pure a
 
 down :: Context -> AllOrSomeVms -> IO ()
 down ctx vmNames = do

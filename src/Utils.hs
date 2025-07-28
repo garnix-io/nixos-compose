@@ -1,7 +1,6 @@
 module Utils
   ( dbg,
     trace,
-    logStep,
     runWithErrorHandling,
     filterMapM,
     Port,
@@ -27,13 +26,6 @@ dbg = hPrint stderr
 
 trace :: (Show a) => a -> a
 trace = Debug.Trace.traceShowId
-
-logStep :: Text -> IO a -> IO a
-logStep log action = do
-  T.hPutStrLn System.IO.stderr log
-  result <- action
-  T.hPutStrLn System.IO.stderr "Done"
-  pure result
 
 runWithErrorHandling :: (Output o) => ProcessConfiguration -> IO o
 runWithErrorHandling pc = do
