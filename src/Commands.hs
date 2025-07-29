@@ -53,7 +53,6 @@ start ctx verbosity startOptions = do
           error $ vmKeyPath <> " already exists"
         () <-
           runWithErrorHandling $
-            -- todo: make runtime dep
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
         ph <- buildAndRun (nixVms ctx) ctx verbosity vmName
