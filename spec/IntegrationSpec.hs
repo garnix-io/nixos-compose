@@ -154,7 +154,16 @@ spec = do
         state <- readVmState ctx (VmName "server")
         _ <- assertSuccess $ test ctx ["stop", "server"]
         (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
-        doesDirectoryExist ("/proc" </> show (state ^. #pid)) `shouldReturn` False
+        exist <- doesDirectoryExist ("/proc" </> show (state ^. #pid))
+        when exist $ do
+          status <- do
+            contents <- T.readFile ("/proc" </> show (state ^. #pid) </> "status")
+            pure $
+              contents
+                & T.lines
+                & mapMaybe (T.stripPrefix "State:")
+                & fmap T.strip
+          status `shouldBe` ["Z (zombie)"]
 
     it "doesn't complain when starting a vm twice" $ do
       withContext $ \ctx -> do
