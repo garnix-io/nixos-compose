@@ -41,3 +41,5 @@ filterMapM :: (Monad m, Ord k) => (k -> v -> m Bool) -> Map k v -> m (Map k v)
 filterMapM pred map = do
   new <- filterM (uncurry pred) $ Map.toList map
   pure $ Map.fromList new
+
+type Port = Int

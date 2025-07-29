@@ -6,7 +6,7 @@ import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
 import Cradle qualified
-import Data.Maybe (isJust)
+import Data.Maybe (fromJust, isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -24,6 +24,7 @@ import System.IO.Silently
 import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
 import System.Process
 import Test.Hspec
+import Utils
 
 data TestResult = TestResult
   { stdout :: Text,
@@ -100,22 +101,19 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 port <- getFreePort
-                State.writeVmState ctx vmName (VmState {pid = Nothing, port})
-                pure ph,
+                pure (ph, port),
             sshIntoHost = \ctx vmName args -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
-              state <- State.readVmState ctx vmName
-              case state ^. #pid of
-                Nothing -> error "nix vm mock: sshIntoHost: mock vm not running"
-                Just _pid -> case args of
-                  [] -> error "nix vm mock: sshIntoHost: no args given"
-                  command : args ->
-                    withSystemTempDirectory "fake-ssh" $ \tempDir -> do
-                      -- this emulates ssh's behavior
-                      Cradle.run $
-                        Cradle.cmd "bash"
-                          & Cradle.addArgs ["-c", T.unwords (command : args)]
-                          & Cradle.setWorkingDir tempDir
+              _state <- State.readVmState ctx vmName
+              case args of
+                [] -> error "nix vm mock: sshIntoHost: no args given"
+                command : args ->
+                  withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                    -- this emulates ssh's behavior
+                    Cradle.run $
+                      Cradle.cmd "bash"
+                        & Cradle.addArgs ["-c", T.unwords (command : args)]
+                        & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action

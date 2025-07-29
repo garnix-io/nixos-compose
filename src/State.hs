@@ -102,7 +102,7 @@ getVdeCtlDir ctx = do
 
 data VmState = VmState
   { port :: Int,
-    pid :: Maybe Int
+    pid :: Int
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
@@ -154,9 +154,7 @@ listRunningVms ctx = modifyState ctx $ \state -> do
   where
     isRunning :: VmName -> VmState -> IO Bool
     isRunning vmName vmState = do
-      isRunning <- case vmState ^. #pid of
-        Nothing -> pure False
-        Just pid -> doesDirectoryExist $ "/proc/" <> show pid
+      isRunning <- doesDirectoryExist $ "/proc/" <> show (vmState ^. #pid :: Int)
       unless isRunning $ do
         T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
         removeVmDir ctx vmName

@@ -57,19 +57,16 @@ start ctx verbosity startOptions = do
           runWithErrorHandling $
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-        ph <- buildAndRun (nixVms ctx) ctx verbosity vmName
+        (ph, port) <- buildAndRun (nixVms ctx) ctx verbosity vmName
         registerProcess ctx ph
         pid <- getPid ph <&> fromMaybe (error "no pid")
-        state <- readVmState ctx vmName
-        writeVmState ctx vmName (state & #pid ?~ fromIntegral pid)
+        State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port})
         waitForVm ctx vmName
 
 stop :: Context -> VmName -> IO ()
 stop ctx vmName = do
   state <- readVmState ctx vmName
-  case state ^. #pid of
-    Just pid -> signalProcess sigKILL $ fromIntegral pid
-    Nothing -> error "pid missing from state file"
+  signalProcess sigKILL $ fromIntegral (state ^. #pid)
   removeVm ctx vmName
   running <- listRunningVms ctx
   when (null running) $ do

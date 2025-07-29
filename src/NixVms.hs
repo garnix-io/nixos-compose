@@ -50,10 +50,11 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildAndRunImpl :: Context -> Verbosity -> VmName -> IO ProcessHandle
+buildAndRunImpl :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port)
 buildAndRunImpl ctx verbosity vmName = do
-  vmExecutable <- logStep "Building NixOS config..." $ do
-    moduleExtensions <- getModuleExtensions ctx vmName
+  (vmExecutable, port) <- logStep "Building NixOS config..." $ do
+    port <- getFreePort
+    moduleExtensions <- getModuleExtensions ctx vmName port
     (Cradle.StdoutTrimmed drvPathJson) <-
       runWithErrorHandling $
         Cradle.cmd "nix"
@@ -86,9 +87,11 @@ buildAndRunImpl ctx verbosity vmName = do
 
     files <- listDirectory (cs outPath </> "bin")
     case files of
-      [file] -> pure $ cs outPath </> "bin" </> file
+      [file] -> pure (cs outPath </> "bin" </> file, port)
       files -> error $ "expected one vm script: " <> show files
-  logStep "Starting VM..." $ runVm ctx verbosity vmName vmExecutable
+  logStep "Starting VM..." $ do
+    handle <- runVm ctx verbosity vmName vmExecutable
+    pure (handle, port)
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -103,11 +106,9 @@ logStep log action = do
   T.hPutStrLn System.IO.stderr "Done"
   pure result
 
-getModuleExtensions :: Context -> VmName -> IO Text
-getModuleExtensions ctx vmName = do
+getModuleExtensions :: Context -> VmName -> Int -> IO Text
+getModuleExtensions ctx vmName port = do
   publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"
-  port <- getFreePort
-  State.writeVmState ctx vmName (VmState {pid = Nothing, port = port})
   pure $
     cs
       [i|

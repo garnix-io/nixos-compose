@@ -117,7 +117,7 @@ spec = do
 
     let assertVmIsRunning ctx vmName = do
           state <- readVmState ctx vmName
-          let pid :: Int = fromJust $ state ^. #pid
+          let pid :: Int = state ^. #pid
           comm <- readFile $ "/proc" </> show (pid :: Int) </> "comm"
           comm `shouldBe` "sleep\n"
 
