@@ -52,7 +52,6 @@ spec = do
               { registerProcess = \handle -> do
                   registerProcess ctx handle
                   Just pid <- getPid handle
-                  print pid
                   exe <- readSymbolicLink $ "/proc" </> show pid </> "exe"
                   when (takeFileName exe /= "vde_switch") $ do
                     putMVar mvar handle
