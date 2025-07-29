@@ -119,6 +119,9 @@ getModuleExtensions ctx vmName port = do
             group = "wheel";
             openssh.authorizedKeys.keys = [ #{toNixString $ cs publicKey} ];
           };
+          security.sudo.extraRules = [
+            { users = [ "vmuser" ]; commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ]; }
+          ];
           virtualisation.vmVariant.virtualisation = {
             graphics = false;
             forwardPorts = [{ from = "host"; host.port = #{port}; guest.port = 22; }];
