@@ -1,5 +1,5 @@
 module Options
-  ( parser,
+  ( parserInfo,
     Options (..),
     Verbosity (..),
     Command (..),
@@ -14,8 +14,18 @@ import Data.Text
 import Options.Applicative
 import StdLib
 
+parserInfo :: ParserInfo Options
+parserInfo =
+  info parser mempty
+
+class Parseable a where
+  parser :: Parser a
+
 newtype Options = Options Command
   deriving stock (Show)
+
+instance Parseable Options where
+  parser = Options <$> parser
 
 data Command
   = List
@@ -25,72 +35,68 @@ data Command
   | Stop {vmName :: VmName}
   deriving stock (Show, Generic)
 
+instance Parseable Command where
+  parser =
+    hsubparser
+      ( command
+          "list"
+          ( info
+              (pure List)
+              (fullDesc <> progDesc "List all configured vms")
+          )
+          <> command
+            "start"
+            ( info
+                (Start <$> parser <*> parser)
+                (fullDesc <> progDesc "Start a development vm")
+            )
+          <> command
+            "ssh"
+            ( info
+                (Ssh <$> parser <*> many (argument str (metavar "SSH_COMMAND")))
+                (fullDesc <> progDesc "`ssh` into a running vm")
+            )
+          <> command
+            "status"
+            ( info
+                (Status <$> many parser)
+                (fullDesc <> progDesc "Show the status of running vms")
+            )
+          <> command
+            "stop"
+            ( info
+                (Stop <$> parser)
+                (progDesc "Stop a running vm")
+            )
+      )
+
 data Verbosity
   = DefaultVerbosity
   | Verbose
   deriving stock (Show)
 
-parseVerbosity :: Parser Verbosity
-parseVerbosity =
-  flag
-    DefaultVerbosity
-    Verbose
-    ( long "verbose"
-        <> short 'v'
-        <> help "increase verbosity"
-    )
+instance Parseable Verbosity where
+  parser =
+    flag
+      DefaultVerbosity
+      Verbose
+      ( long "verbose"
+          <> short 'v'
+          <> help "increase verbosity"
+      )
 
 data StartOptions
   = StartAll
   | StartSome (NonEmpty VmName)
   deriving stock (Show, Generic)
 
-parseStartOptions :: Parser StartOptions
-parseStartOptions =
-  flag' StartAll (long "all")
-    <|> (StartSome . NonEmpty.fromList <$> some parseVmName)
-
-parser :: ParserInfo Options
-parser =
-  info p mempty
-  where
-    p =
-      Options
-        <$> hsubparser
-          ( command
-              "list"
-              ( info
-                  (pure List)
-                  (fullDesc <> progDesc "List all configured vms")
-              )
-              <> command
-                "start"
-                ( info
-                    (Start <$> parseVerbosity <*> parseStartOptions)
-                    (fullDesc <> progDesc "Start a development vm")
-                )
-              <> command
-                "ssh"
-                ( info
-                    (Ssh <$> parseVmName <*> many (argument str (metavar "SSH_COMMAND")))
-                    (fullDesc <> progDesc "`ssh` into a running vm")
-                )
-              <> command
-                "status"
-                ( info
-                    (Status <$> many parseVmName)
-                    (fullDesc <> progDesc "Show the status of running vms")
-                )
-              <> command
-                "stop"
-                ( info
-                    (Stop <$> parseVmName)
-                    (progDesc "Stop a running vm")
-                )
-          )
+instance Parseable StartOptions where
+  parser =
+    flag' StartAll (long "all")
+      <|> (StartSome . NonEmpty.fromList <$> some parser)
 
 newtype VmName = VmName {vmNameToText :: Text}
   deriving stock (Eq, Show, Ord)
 
-parseVmName :: Parser VmName
-parseVmName = VmName <$> argument str (metavar "VM_NAME")
+instance Parseable VmName where
+  parser = VmName <$> argument str (metavar "VM_NAME")
