@@ -19,7 +19,6 @@ import Context
 import Control.Monad (filterM)
 import Data.Aeson
 import Data.ByteString.Lazy qualified
-import Data.Int (Int64)
 import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
 import Options (VmName (..))
@@ -40,7 +39,7 @@ data VmState = VmState
   { port :: Int,
     pid :: Maybe Int
   }
-  deriving stock (Generic)
+  deriving stock (Generic, Show)
   deriving anyclass (ToJSON, FromJSON)
 
 listRunningVms :: Context -> IO [VmName]

@@ -3,14 +3,15 @@ module CliSpec where
 import Context
 import Control.Concurrent (newEmptyMVar, putMVar, readMVar)
 import Cradle
+import Data.IORef (modifyIORef, newIORef, readIORef)
 import Data.Maybe (fromJust)
 import Data.String.Conversions (cs)
-import State (readVdeState)
+import State (readState, readVdeState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
 import System.Posix (readSymbolicLink)
-import System.Process (getPid)
+import System.Process (Pid, getPid)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
 import TestUtils
@@ -52,7 +53,7 @@ spec = do
               { registerProcess = \handle -> do
                   registerProcess ctx handle
                   Just pid <- getPid handle
-                  exe <- readSymbolicLink $ "/proc" </> show pid </> "exe"
+                  exe <- readSymbolicLink $ "/proc" </> show (pid :: Pid) </> "exe"
                   when (takeFileName exe /= "vde_switch") $ do
                     putMVar mvar handle
               }
@@ -111,8 +112,14 @@ spec = do
           case vdeState of
             Nothing -> expectationFailure "assertVdeIsRunning: no vde state"
             Just vdeState -> do
-              exe <- getSymbolicLinkTarget $ "/proc" </> show (vdeState ^. #pid) </> "exe"
+              exe <- getSymbolicLinkTarget $ "/proc" </> show (vdeState ^. #pid :: Int64) </> "exe"
               takeFileName exe `shouldBe` "vde_switch"
+
+    let assertVmIsRunning ctx vmName = do
+          state <- readState ctx vmName
+          let pid :: Int = fromJust $ state ^. #pid
+          comm <- readFile $ "/proc" </> show (pid :: Int) </> "comm"
+          comm `shouldBe` "sleep\n"
 
     it "starts the switch when starting a vm" $ do
       withMockContext ["a"] $ \ctx -> do
@@ -151,3 +158,19 @@ spec = do
         _ <- assertSuccess $ test ctx ["stop", "b"]
         _ <- assertSuccess $ test ctx ["stop", "a"]
         readVdeState ctx `shouldReturn` Nothing
+
+    it "restarts the switch after e.g. a reboot" $ do
+      withMockContext ["a", "b"] $ \ctx -> do
+        processes <- newIORef []
+        ctx <-
+          pure $
+            ctx
+              { registerProcess = \handle -> do
+                  registerProcess ctx handle
+                  modifyIORef processes (handle :)
+              }
+        _ <- assertSuccess $ test ctx ["start", "a"]
+        readIORef processes >>= mapM_ endProcess
+        _ <- assertSuccess $ test ctx ["start", "a"]
+        assertVdeIsRunning ctx
+        assertVmIsRunning ctx "a"
