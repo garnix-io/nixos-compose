@@ -140,8 +140,16 @@ runVm ctx verbosity vmName vmExecutable = do
   let nixDiskImage = storageDir </> "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
+  vdeCtlDir <- getVdeCtlDir ctx
   let mkProc stdout stderr =
-        (System.Process.proc vmExecutable [])
+        ( System.Process.proc
+            vmExecutable
+            [ "-device",
+              "virtio-net-pci,netdev=vlan1,mac=52:54:00:12:01:03",
+              "-netdev",
+              "vde,id=vlan1,sock=" <> vdeCtlDir
+            ]
+        )
           { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
             std_in = CreatePipe,
             std_out = stdout,

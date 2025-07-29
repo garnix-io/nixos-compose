@@ -20,6 +20,7 @@ executable vmcli
       State
       StdLib
       Utils
+      Vde
       Paths_vmcli
   hs-source-dirs:
       src
@@ -27,9 +28,10 @@ executable vmcli
       DeriveAnyClass
       DeriveGeneric
       DerivingStrategies
+      DuplicateRecordFields
       ImportQualifiedPost
-      LambdaCase
       InstanceSigs
+      LambdaCase
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -43,9 +45,11 @@ executable vmcli
   build-depends:
       aeson
     , base
+    , bytestring
     , containers
     , cradle
     , directory
+    , filelock
     , filepath
     , generic-lens
     , interpolate
@@ -79,6 +83,7 @@ test-suite spec
       State
       StdLib
       Utils
+      Vde
       Paths_vmcli
   hs-source-dirs:
       spec
@@ -87,9 +92,10 @@ test-suite spec
       DeriveAnyClass
       DeriveGeneric
       DerivingStrategies
+      DuplicateRecordFields
       ImportQualifiedPost
-      LambdaCase
       InstanceSigs
+      LambdaCase
       NamedFieldPuns
       NumericUnderscores
       OverloadedLabels
@@ -107,6 +113,7 @@ test-suite spec
     , containers
     , cradle
     , directory
+    , filelock
     , filepath
     , generic-lens
     , hspec
