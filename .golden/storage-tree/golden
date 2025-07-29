@@ -1,0 +1,15 @@
+.
+├── vde1.ctl
+│   ├── 001.9
+│   └── ctl
+├── vde.json
+└── vms
+    └── server
+        ├── image.qcow2
+        ├── state.json
+        ├── stderr.log
+        ├── stdout.log
+        ├── vmkey
+        └── vmkey.pub
+
+4 directories, 9 files

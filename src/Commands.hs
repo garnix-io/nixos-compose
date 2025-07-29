@@ -70,7 +70,7 @@ stop ctx vmName = do
   case state ^. #pid of
     Just pid -> signalProcess sigKILL $ fromIntegral pid
     Nothing -> error "pid missing from state file"
-  removeState ctx vmName
+  removeStateDir ctx vmName
   running <- listRunningVms ctx
   when (null running) $ do
     Vde.stop ctx

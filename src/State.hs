@@ -5,7 +5,7 @@ module State
     getStateDir,
     getStateFile,
     listRunningVms,
-    removeState,
+    removeStateDir,
 
     -- * vde state
     VdeState (..),
@@ -45,14 +45,12 @@ data VmState = VmState
 
 listRunningVms :: Context -> IO [VmName]
 listRunningVms ctx = do
-  createDirectoryIfMissing True (storageDir ctx)
-  vms <-
-    listDirectory (storageDir ctx)
-      <&> fmap (VmName . cs)
-      -- todo: put vm dirs in subdirectory
-      -- todo: put vde paths in subdirectory
-      . filter (\dir -> dir `notElem` ["vde.json", "vde1.ctl"])
-  filterM (isRunning ctx) vms
+  exists <- doesDirectoryExist (storageDir ctx </> "vms")
+  if not exists
+    then pure []
+    else do
+      vms <- fmap (VmName . cs) <$> listDirectory (storageDir ctx </> "vms")
+      filterM (isRunning ctx) vms
 
 isRunning :: Context -> VmName -> IO Bool
 isRunning ctx vmName = do
@@ -62,7 +60,7 @@ isRunning ctx vmName = do
     Just pid -> doesDirectoryExist $ "/proc/" <> show pid
   unless isRunning $ do
     T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
-    getStateDir ctx vmName >>= removeDirectoryRecursive
+    removeStateDir ctx vmName
   pure isRunning
 
 writeState :: Context -> VmName -> VmState -> IO ()
@@ -75,16 +73,19 @@ readState ctx vmName = do
   path <- getStateFile ctx vmName "state.json"
   either error id <$> eitherDecodeFileStrict' path
 
-removeState :: Context -> VmName -> IO ()
-removeState ctx vmName = do
+removeStateDir :: Context -> VmName -> IO ()
+removeStateDir ctx vmName = do
   removeDirectoryRecursive =<< getStateDir ctx vmName
+  vmDirs <- listDirectory (storageDir ctx </> "vms")
+  when (null vmDirs) $ do
+    removeDirectoryRecursive (storageDir ctx </> "vms")
 
 getStateFile :: Context -> VmName -> FilePath -> IO FilePath
 getStateFile ctx vmName path = getStateDir ctx vmName <&> (</> path)
 
 getStateDir :: Context -> VmName -> IO FilePath
 getStateDir ctx (VmName vmName) = do
-  let dir = storageDir ctx </> cs vmName
+  let dir = storageDir ctx </> "vms" </> cs vmName
   createDirectoryIfMissing True dir
   pure dir
 
