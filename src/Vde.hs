@@ -6,7 +6,7 @@ where
 
 import Context
 import Data.Text.IO qualified as T
-import State (VdeState (..), getVdeCtlDir, modifyVdeState)
+import State (State (..), VdeState (..), getVdeCtlDir, modifyState_)
 import StdLib
 import System.Directory (doesDirectoryExist, removeDirectoryRecursive)
 import System.Posix (sigKILL, signalProcess)
@@ -14,15 +14,18 @@ import System.Process
 
 startIfNotRunning :: Context -> IO ()
 startIfNotRunning ctx = do
-  modifyVdeState ctx $ \case
-    Nothing -> Just <$> startVde ctx
+  modifyState_ ctx $ \case
+    Nothing -> do
+      vdeState <- startVde ctx
+      pure $ Just $ State {vde = vdeState, vms = mempty}
     Just state -> do
-      isRunning <- doesDirectoryExist $ "/proc/" <> show (state ^. #pid)
+      isRunning <- doesDirectoryExist $ "/proc/" <> show (state ^. #vde . #pid)
       if isRunning
         then pure $ Just state
         else do
           T.putStrLn "WARN: vde_switch crashed, restarting"
-          Just <$> startVde ctx
+          vdeState <- startVde ctx
+          pure $ Just $ state & #vde .~ vdeState
 
 startVde :: Context -> IO VdeState
 startVde ctx = do
@@ -39,9 +42,9 @@ startVde ctx = do
 
 stop :: Context -> IO ()
 stop ctx = do
-  modifyVdeState ctx $ \case
+  modifyState_ ctx $ \case
     Nothing -> pure Nothing
     Just state -> do
-      signalProcess sigKILL $ fromIntegral $ state ^. #pid
+      signalProcess sigKILL $ fromIntegral $ state ^. #vde . #pid
       removeDirectoryRecursive =<< getVdeCtlDir ctx
       pure Nothing

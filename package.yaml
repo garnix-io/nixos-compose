@@ -38,6 +38,7 @@ default-extensions:
   - DeriveGeneric
   - DerivingStrategies
   - DuplicateRecordFields
+  - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
   - InstanceSigs
   - LambdaCase

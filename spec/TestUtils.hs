@@ -89,7 +89,7 @@ withMockContext vmNames action = do
         NixVms
           { listVms = \_ctx -> pure vmNames,
             buildAndRun =
-              \ctx _verbosity vmName -> do
+              \_ctx _verbosity vmName -> do
                 unless (vmName `elem` vmNames) $ do
                   error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do
@@ -100,22 +100,19 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 port <- getFreePort
-                State.writeState ctx vmName (VmState {pid = Nothing, port})
-                pure ph,
+                pure (ph, port),
             sshIntoHost = \ctx vmName args -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
-              state <- State.readState ctx vmName
-              case state ^. #pid of
-                Nothing -> error "nix vm mock: sshIntoHost: mock vm not running"
-                Just _pid -> case args of
-                  [] -> error "nix vm mock: sshIntoHost: no args given"
-                  command : args ->
-                    withSystemTempDirectory "fake-ssh" $ \tempDir -> do
-                      -- this emulates ssh's behavior
-                      Cradle.run $
-                        Cradle.cmd "bash"
-                          & Cradle.addArgs ["-c", T.unwords (command : args)]
-                          & Cradle.setWorkingDir tempDir
+              _state <- State.readVmState ctx vmName
+              case args of
+                [] -> error "nix vm mock: sshIntoHost: no args given"
+                command : args ->
+                  withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                    -- this emulates ssh's behavior
+                    Cradle.run $
+                      Cradle.cmd "bash"
+                        & Cradle.addArgs ["-c", T.unwords (command : args)]
+                        & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action

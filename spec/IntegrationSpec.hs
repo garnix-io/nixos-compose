@@ -12,7 +12,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import NixVms qualified
 import Options (VmName (..))
-import State (readState)
+import State (readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
 import System.FilePath ((</>))
@@ -151,10 +151,19 @@ spec = do
         writeStandardFlake ctx Nothing
         _ <- assertSuccess $ test ctx ["start", "server"]
         (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
-        state <- readState ctx (VmName "server")
+        state <- readVmState ctx (VmName "server")
         _ <- assertSuccess $ test ctx ["stop", "server"]
         (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
-        doesDirectoryExist ("/proc" </> show (state ^. #pid)) `shouldReturn` False
+        exist <- doesDirectoryExist ("/proc" </> show (state ^. #pid))
+        when exist $ do
+          status <- do
+            contents <- T.readFile ("/proc" </> show (state ^. #pid) </> "status")
+            pure $
+              contents
+                & T.lines
+                & mapMaybe (T.stripPrefix "State:")
+                & fmap T.strip
+          status `shouldBe` ["Z (zombie)"]
 
     it "doesn't complain when starting a vm twice" $ do
       withContext $ \ctx -> do

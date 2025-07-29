@@ -50,10 +50,11 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildAndRunImpl :: Context -> Verbosity -> VmName -> IO ProcessHandle
+buildAndRunImpl :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port)
 buildAndRunImpl ctx verbosity vmName = do
-  vmExecutable <- logStep "Building NixOS config..." $ do
-    moduleExtensions <- getModuleExtensions ctx vmName
+  (vmExecutable, port) <- logStep "Building NixOS config..." $ do
+    port <- getFreePort
+    moduleExtensions <- getModuleExtensions ctx vmName port
     (Cradle.StdoutTrimmed drvPathJson) <-
       runWithErrorHandling $
         Cradle.cmd "nix"
@@ -86,9 +87,11 @@ buildAndRunImpl ctx verbosity vmName = do
 
     files <- listDirectory (cs outPath </> "bin")
     case files of
-      [file] -> pure $ cs outPath </> "bin" </> file
+      [file] -> pure (cs outPath </> "bin" </> file, port)
       files -> error $ "expected one vm script: " <> show files
-  logStep "Starting VM..." $ runVm ctx verbosity vmName vmExecutable
+  logStep "Starting VM..." $ do
+    handle <- runVm ctx verbosity vmName vmExecutable
+    pure (handle, port)
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -103,11 +106,9 @@ logStep log action = do
   T.hPutStrLn System.IO.stderr "Done"
   pure result
 
-getModuleExtensions :: Context -> VmName -> IO Text
-getModuleExtensions ctx vmName = do
-  publicKey <- readFile =<< getStateFile ctx vmName "vmkey.pub"
-  port <- getFreePort
-  State.writeState ctx vmName (VmState {pid = Nothing, port = port})
+getModuleExtensions :: Context -> VmName -> Int -> IO Text
+getModuleExtensions ctx vmName port = do
+  publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"
   pure $
     cs
       [i|
@@ -136,8 +137,7 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
 
 runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
 runVm ctx verbosity vmName vmExecutable = do
-  storageDir <- getStateDir ctx vmName
-  let nixDiskImage = storageDir </> "image.qcow2"
+  nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
   vdeCtlDir <- getVdeCtlDir ctx
@@ -157,8 +157,10 @@ runVm ctx verbosity vmName vmExecutable = do
           }
   proc <- case verbosity of
     DefaultVerbosity -> do
-      stdoutHandle <- openFile (storageDir </> "./stdout.log") WriteMode
-      stderrHandle <- openFile (storageDir </> "./stderr.log") WriteMode
+      stdoutLog <- getVmFilePath ctx vmName "stdout.log"
+      stdoutHandle <- openFile stdoutLog WriteMode
+      stderrLog <- getVmFilePath ctx vmName "stderr.log"
+      stderrHandle <- openFile stderrLog WriteMode
       pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
     Verbose -> pure $ mkProc CreatePipe CreatePipe
   (_, stdout, stderr, ph) <- createProcess proc
@@ -179,8 +181,8 @@ streamHandles prefix input output = do
 
 sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
 sshIntoHostImpl ctx vmName command = do
-  vmKeyPath <- getStateFile ctx vmName "vmkey"
-  port <- State.readState ctx vmName <&> (^. #port)
+  vmKeyPath <- getVmFilePath ctx vmName "vmkey"
+  port <- State.readVmState ctx vmName <&> (^. #port)
   Cradle.run $
     Cradle.cmd "ssh"
       & Cradle.setStdinHandle (ctx ^. #stdin)
