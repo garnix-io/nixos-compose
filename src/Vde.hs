@@ -5,9 +5,10 @@ module Vde
 where
 
 import Context
+import Data.Text.IO qualified as T
 import State (VdeState (..), getVdeCtlDir, modifyVdeState)
 import StdLib
-import System.Directory (removeDirectoryRecursive)
+import System.Directory (doesDirectoryExist, removeDirectoryRecursive)
 import System.Posix (sigKILL, signalProcess)
 import System.Process
 
@@ -25,9 +26,11 @@ startIfNotRunning ctx = do
       registerProcess ctx handle
       pid <- getPid handle <&> fromMaybe (error "no pid")
       pure $ Just $ VdeState {pid = fromIntegral pid}
-    Just x -> do
-      -- todo: make sure it's still running?
-      pure $ Just x
+    Just state -> do
+      isRunning <- doesDirectoryExist $ "/proc/" <> show (state ^. #pid)
+      unless isRunning $ do
+        T.putStrLn "WARN: vde_switch crashed"
+      pure $ Just state
 
 stop :: Context -> IO ()
 stop ctx = do
