@@ -23,7 +23,7 @@ runInProduction = do
 run :: Context -> [Text] -> IO ExitCode
 run ctx args =
   handleExceptions $ do
-    (Options opts) <- handleParseResult $ execParserPure (prefs showHelpOnError) parser (cs <$> args)
+    (Options opts) <- handleParseResult $ execParserPure (prefs showHelpOnError) parserInfo (cs <$> args)
     case opts of
       List -> list ctx
       Start verbosity vmNames -> start ctx verbosity vmNames
