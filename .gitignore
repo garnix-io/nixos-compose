@@ -1,3 +1,4 @@
 actual
 /dist-newstyle
 result
+*.qcow2

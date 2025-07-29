@@ -10,8 +10,7 @@ where
 import Context
 import Control.Concurrent (threadDelay)
 import Cradle
-import Data.List.NonEmpty qualified as NonEmpty
-import Data.Maybe (fromMaybe)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Options (StartOptions (..), Verbosity, VmName (..))
@@ -22,6 +21,7 @@ import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (getPid)
 import Utils
+import Vde qualified
 import Prelude
 
 list :: Context -> IO ()
@@ -36,40 +36,41 @@ start ctx verbosity startOptions = do
   vmNames <- case startOptions of
     StartAll -> do
       vmNames <- listVms (nixVms ctx) ctx
-      when (null vmNames) $ do
-        T.hPutStrLn stderr "No vms are defined. Nothing to do."
-        throwIO $ ExitFailure 1
-      pure vmNames
-    StartSome vmNames -> pure $ NonEmpty.toList vmNames
+      case vmNames of
+        [] -> do
+          T.hPutStrLn stderr "No vms are defined. Nothing to do."
+          throwIO $ ExitFailure 1
+        a : r -> pure $ a :| r
+    StartSome vmNames -> pure vmNames
+  Vde.startIfNotRunning ctx
   forM_ vmNames $ \vmName -> do
     alreadyRunning <- listRunningVms ctx
     if vmName `elem` alreadyRunning
       then do
         T.putStrLn $ vmNameToText vmName <> ": already running"
       else do
-        vmKeyPath <- getStateFile ctx vmName "vmkey"
+        vmKeyPath <- getVmFilePath ctx vmName "vmkey"
         exists <- doesFileExist vmKeyPath
         when exists $ do
           error $ vmKeyPath <> " already exists"
         () <-
           runWithErrorHandling $
-            -- todo: make runtime dep
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-        ph <- buildAndRun (nixVms ctx) ctx verbosity vmName
+        (ph, port) <- buildAndRun (nixVms ctx) ctx verbosity vmName
         registerProcess ctx ph
         pid <- getPid ph <&> fromMaybe (error "no pid")
-        state <- readState ctx vmName
-        writeState ctx vmName (state {pid = Just $ fromIntegral pid})
+        State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port})
         waitForVm ctx vmName
 
 stop :: Context -> VmName -> IO ()
 stop ctx vmName = do
-  state <- readState ctx vmName
-  case state ^. #pid of
-    Just pid -> signalProcess sigKILL $ fromIntegral pid
-    Nothing -> error "pid missing from state file"
-  removeState ctx vmName
+  state <- readVmState ctx vmName
+  signalProcess sigKILL $ fromIntegral (state ^. #pid)
+  removeVm ctx vmName
+  running <- listRunningVms ctx
+  when (null running) $ do
+    Vde.stop ctx
 
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do
@@ -86,6 +87,8 @@ ssh ctx vmName command = do
 status :: Context -> [VmName] -> IO ()
 status ctx vmName = do
   runningVms <- sort <$> State.listRunningVms ctx
+  when (null runningVms) $ do
+    Vde.stop ctx
   T.putStr $ T.unlines $ case vmName of
     [] -> flip map runningVms $ \runningVm ->
       vmNameToText runningVm <> ": running"

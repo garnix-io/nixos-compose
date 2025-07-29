@@ -6,6 +6,7 @@ import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
 import Cradle qualified
+import Data.Maybe (isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -15,7 +16,9 @@ import Options (VmName (..))
 import Run (run)
 import State
 import StdLib
+import System.Environment (lookupEnv)
 import System.FilePath ((</>))
+import System.IO (hPutStr)
 import System.IO qualified
 import System.IO.Silently
 import System.IO.Temp (withSystemTempDirectory, withSystemTempFile)
@@ -48,6 +51,10 @@ assertSuccess action = do
 test :: Context -> [Text] -> IO TestResult
 test ctx args = do
   (stderr, (stdout, exitCode)) <- hCapture [System.IO.stderr] $ capture $ run ctx args
+  debugEnvVar <- lookupEnv "DEBUG"
+  when (isJust debugEnvVar) $ do
+    putStr stdout
+    hPutStr System.IO.stderr stderr
   pure $ TestResult (cs stdout) (cs stderr) exitCode
 
 withContext :: NixVms -> (Context -> IO a) -> IO a
@@ -82,7 +89,7 @@ withMockContext vmNames action = do
         NixVms
           { listVms = \_ctx -> pure vmNames,
             buildAndRun =
-              \ctx _verbosity vmName -> do
+              \_ctx _verbosity vmName -> do
                 unless (vmName `elem` vmNames) $ do
                   error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do
@@ -93,22 +100,19 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 port <- getFreePort
-                State.writeState ctx vmName (VmState {pid = Nothing, port})
-                pure ph,
+                pure (ph, port),
             sshIntoHost = \ctx vmName args -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
-              state <- State.readState ctx vmName
-              case state ^. #pid of
-                Nothing -> error "nix vm mock: sshIntoHost: mock vm not running"
-                Just _pid -> case args of
-                  [] -> error "nix vm mock: sshIntoHost: no args given"
-                  command : args ->
-                    withSystemTempDirectory "fake-ssh" $ \tempDir -> do
-                      -- this emulates ssh's behavior
-                      Cradle.run $
-                        Cradle.cmd "bash"
-                          & Cradle.addArgs ["-c", T.unwords (command : args)]
-                          & Cradle.setWorkingDir tempDir
+              _state <- State.readVmState ctx vmName
+              case args of
+                [] -> error "nix vm mock: sshIntoHost: no args given"
+                command : args ->
+                  withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                    -- this emulates ssh's behavior
+                    Cradle.run $
+                      Cradle.cmd "bash"
+                        & Cradle.addArgs ["-c", T.unwords (command : args)]
+                        & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action

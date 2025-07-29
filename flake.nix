@@ -34,8 +34,8 @@
             "--ghc-option=-O2"
           ];
         });
-        runtimeDeps = [ pkgs.openssh pkgs.nix ];
-        testDeps = [ pkgs.coreutils pkgs.bash pkgs.tree ];
+        runtimeDeps = [ pkgs.openssh pkgs.nix pkgs.vde2 ];
+        testDeps = [ pkgs.coreutils pkgs.bash pkgs.tree pkgs.ps ];
         ghcWithDeps =
           (
             let
@@ -55,7 +55,6 @@
       in
       rec {
         packages = {
-          # todo: add dependencies to runtime deps
           default =
             let
               mkShellCompletion = shell: outPath: ''
@@ -125,7 +124,7 @@
                 text = ''
                   hpack
                   ghcid \
-                    --command "cabal repl test:spec" \
+                    --command "cabal repl test:spec --ghc-options=-fdefer-typed-holes" \
                     --allow-eval \
                     --test ":main --skip Integration $*" \
                     --warnings \

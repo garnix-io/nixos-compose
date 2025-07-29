@@ -5,6 +5,7 @@ import Options (Verbosity, VmName)
 import StdLib
 import System.IO
 import System.Process
+import Utils (Port)
 
 data Context = Context
   { registerProcess :: ProcessHandle -> IO (),
@@ -17,6 +18,6 @@ data Context = Context
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
-    buildAndRun :: Context -> Verbosity -> VmName -> IO ProcessHandle,
+    buildAndRun :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port),
     sshIntoHost :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
   }

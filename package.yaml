@@ -9,7 +9,6 @@ tests:
     source-dirs: [spec, src]
     main: Spec.hs
     dependencies:
-      - bytestring
       - hspec
       - hspec-discover
       - hspec-golden
@@ -38,9 +37,11 @@ default-extensions:
   - DeriveAnyClass
   - DeriveGeneric
   - DerivingStrategies
+  - DuplicateRecordFields
+  - GeneralizedNewtypeDeriving
   - ImportQualifiedPost
-  - LambdaCase
   - InstanceSigs
+  - LambdaCase
   - NamedFieldPuns
   - NumericUnderscores
   - OverloadedLabels
@@ -54,9 +55,11 @@ default-extensions:
 dependencies:
   - aeson
   - base
+  - bytestring
   - containers
   - cradle
   - directory
+  - filelock
   - filepath
   - generic-lens
   - interpolate
