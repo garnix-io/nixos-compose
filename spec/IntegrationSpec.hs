@@ -70,6 +70,19 @@ spec = do
         result <- assertSuccess $ test ctx ["list"]
         result ^. #stdout `shouldBe` "configured vms: a, b, c\n"
 
+    it "lists vms when there's no `nixosConfigurations` field" $ do
+      withContext $ \ctx -> do
+        writeFile
+          (workingDir ctx </> "flake.nix")
+          [i|
+            {
+              inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
+              outputs = { nixpkgs, ... }: { };
+            }
+          |]
+        result <- assertSuccess $ test ctx ["list"]
+        result ^. #stdout `shouldBe` "no vms configured\n"
+
     it "starts vms" $ do
       withContext $ \ctx -> do
         writeStandardFlake ctx Nothing
