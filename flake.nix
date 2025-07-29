@@ -55,7 +55,6 @@
       in
       rec {
         packages = {
-          # todo: add dependencies to runtime deps
           default =
             let
               mkShellCompletion = shell: outPath: ''
