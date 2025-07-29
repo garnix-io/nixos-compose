@@ -100,12 +100,12 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 port <- getFreePort
-                State.writeState ctx vmName (VmState {pid = Nothing, port})
+                State.writeVmState ctx vmName (VmState {pid = Nothing, port})
                 pure ph,
             sshIntoHost = \ctx vmName args -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
-              state <- State.readState ctx vmName
+              state <- State.readVmState ctx vmName
               case state ^. #pid of
                 Nothing -> error "nix vm mock: sshIntoHost: mock vm not running"
                 Just _pid -> case args of

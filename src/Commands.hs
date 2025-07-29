@@ -49,7 +49,7 @@ start ctx verbosity startOptions = do
       then do
         T.putStrLn $ vmNameToText vmName <> ": already running"
       else do
-        vmKeyPath <- getStateFile ctx vmName "vmkey"
+        vmKeyPath <- getVmFilePath ctx vmName "vmkey"
         exists <- doesFileExist vmKeyPath
         when exists $ do
           error $ vmKeyPath <> " already exists"
@@ -60,17 +60,17 @@ start ctx verbosity startOptions = do
         ph <- buildAndRun (nixVms ctx) ctx verbosity vmName
         registerProcess ctx ph
         pid <- getPid ph <&> fromMaybe (error "no pid")
-        state <- readState ctx vmName
-        writeState ctx vmName (state & #pid ?~ fromIntegral pid)
+        state <- readVmState ctx vmName
+        writeVmState ctx vmName (state & #pid ?~ fromIntegral pid)
         waitForVm ctx vmName
 
 stop :: Context -> VmName -> IO ()
 stop ctx vmName = do
-  state <- readState ctx vmName
+  state <- readVmState ctx vmName
   case state ^. #pid of
     Just pid -> signalProcess sigKILL $ fromIntegral pid
     Nothing -> error "pid missing from state file"
-  removeStateDir ctx vmName
+  removeVm ctx vmName
   running <- listRunningVms ctx
   when (null running) $ do
     Vde.stop ctx

@@ -8,6 +8,7 @@ module Options
   )
 where
 
+import Data.Aeson (FromJSONKey, ToJSONKey)
 import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text
@@ -97,6 +98,7 @@ instance Parseable StartOptions where
 
 newtype VmName = VmName {vmNameToText :: Text}
   deriving stock (Eq, Show, Ord)
+  deriving newtype (ToJSONKey, FromJSONKey)
 
 instance Parseable VmName where
   parser = VmName <$> argument str (metavar "VM_NAME")

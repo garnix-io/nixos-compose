@@ -1,5 +1,7 @@
 module StdLib
-  ( (&),
+  ( (%~),
+    (&),
+    (.~),
     (<&>),
     (?~),
     (^.),
@@ -18,7 +20,7 @@ module StdLib
 where
 
 import Control.Exception.Safe (throwIO)
-import Control.Lens ((&), (<&>), (?~), (^.))
+import Control.Lens ((%~), (&), (.~), (<&>), (?~), (^.))
 import Control.Monad (forM, forM_, unless, when)
 import Data.Generics.Labels ()
 import Data.Int (Int64)

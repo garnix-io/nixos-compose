@@ -1,8 +1,11 @@
 module Utils where
 
 import Control.Exception.Safe (throwIO)
+import Control.Monad (filterM)
 import Cradle
 import Cradle.ProcessConfiguration qualified
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Data.String.Conversions (cs)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -33,3 +36,8 @@ runWithErrorHandling pc = do
           <> "\n"
           <> cs stderr
       throwIO exitCode
+
+filterMapM :: (Monad m, Ord k) => (k -> v -> m Bool) -> Map k v -> m (Map k v)
+filterMapM pred map = do
+  new <- filterM (uncurry pred) $ Map.toList map
+  pure $ Map.fromList new

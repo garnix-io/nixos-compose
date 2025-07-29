@@ -105,9 +105,9 @@ logStep log action = do
 
 getModuleExtensions :: Context -> VmName -> IO Text
 getModuleExtensions ctx vmName = do
-  publicKey <- readFile =<< getStateFile ctx vmName "vmkey.pub"
+  publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"
   port <- getFreePort
-  State.writeState ctx vmName (VmState {pid = Nothing, port = port})
+  State.writeVmState ctx vmName (VmState {pid = Nothing, port = port})
   pure $
     cs
       [i|
@@ -136,8 +136,7 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
 
 runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
 runVm ctx verbosity vmName vmExecutable = do
-  storageDir <- getStateDir ctx vmName
-  let nixDiskImage = storageDir </> "image.qcow2"
+  nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
   vdeCtlDir <- getVdeCtlDir ctx
@@ -157,8 +156,10 @@ runVm ctx verbosity vmName vmExecutable = do
           }
   proc <- case verbosity of
     DefaultVerbosity -> do
-      stdoutHandle <- openFile (storageDir </> "./stdout.log") WriteMode
-      stderrHandle <- openFile (storageDir </> "./stderr.log") WriteMode
+      stdoutLog <- getVmFilePath ctx vmName "stdout.log"
+      stdoutHandle <- openFile stdoutLog WriteMode
+      stderrLog <- getVmFilePath ctx vmName "stderr.log"
+      stderrHandle <- openFile stderrLog WriteMode
       pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
     Verbose -> pure $ mkProc CreatePipe CreatePipe
   (_, stdout, stderr, ph) <- createProcess proc
@@ -179,8 +180,8 @@ streamHandles prefix input output = do
 
 sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
 sshIntoHostImpl ctx vmName command = do
-  vmKeyPath <- getStateFile ctx vmName "vmkey"
-  port <- State.readState ctx vmName <&> (^. #port)
+  vmKeyPath <- getVmFilePath ctx vmName "vmkey"
+  port <- State.readVmState ctx vmName <&> (^. #port)
   Cradle.run $
     Cradle.cmd "ssh"
       & Cradle.setStdinHandle (ctx ^. #stdin)

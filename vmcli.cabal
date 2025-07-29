@@ -29,6 +29,7 @@ executable vmcli
       DeriveGeneric
       DerivingStrategies
       DuplicateRecordFields
+      GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
       LambdaCase
@@ -93,6 +94,7 @@ test-suite spec
       DeriveGeneric
       DerivingStrategies
       DuplicateRecordFields
+      GeneralizedNewtypeDeriving
       ImportQualifiedPost
       InstanceSigs
       LambdaCase
