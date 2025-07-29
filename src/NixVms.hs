@@ -43,13 +43,7 @@ listVmsImpl ctx = do
                    ".#.",
                    "--json",
                    "--apply",
-                   cs
-                     [i|
-                      outputs:
-                        if outputs ? "nixosConfigurations"
-                          then builtins.attrNames outputs.nixosConfigurations
-                          else []
-                     |]
+                   "outputs: builtins.attrNames (outputs.nixosConfigurations or {})"
                  ]
           )
   case Aeson.eitherDecode' (cs json) of
