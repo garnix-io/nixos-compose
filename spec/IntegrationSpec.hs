@@ -172,9 +172,11 @@ spec = do
       it "allows to talk from one vm to the other by static ip" $ \ctx -> do
         copyFile (repoRoot </> "spec/static-ips/flake.nix") (workingDir ctx </> "flake.nix")
         _ <- assertSuccess $ test ctx ["start", "a", "b"]
-        result <- assertSuccess (test ctx ["ssh", "a", "ping -c 1 10.0.0.6"])
+        aIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "a"])
+        bIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "b"])
+        result <- assertSuccess $ test ctx ["ssh", "a", "ping -c 1 " <> bIp]
         result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
-        result <- assertSuccess (test ctx ["ssh", "b", "ping -c 1 10.0.0.5"])
+        result <- assertSuccess $ test ctx ["ssh", "b", "ping -c 1 " <> aIp]
         result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
 
   context "not inside a temporary working dir (for hspec-golden)" $ do
