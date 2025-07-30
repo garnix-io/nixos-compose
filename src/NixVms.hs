@@ -27,8 +27,9 @@ production :: NixVms
 production =
   NixVms
     { listVms = listVmsImpl,
-      buildAndRun = buildAndRunImpl,
-      sshIntoHost = sshIntoHostImpl
+      buildVmScript = buildVmScriptImpl,
+      runVm = runVmImpl,
+      sshIntoVm = sshIntoVmImpl
     }
 
 listVmsImpl :: Context -> IO [VmName]
@@ -50,13 +51,8 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildAndRunImpl :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port)
-buildAndRunImpl ctx verbosity vmName = do
-  (vmExecutable, port) <- buildImpl ctx vmName
-  (,port) <$> runImpl ctx verbosity vmName vmExecutable
-
-buildImpl :: Context -> VmName -> IO (FilePath, Port)
-buildImpl ctx vmName = do
+buildVmScriptImpl :: Context -> VmName -> IO (FilePath, Port)
+buildVmScriptImpl ctx vmName = do
   logStep "Building NixOS config..." $ do
     port <- getFreePort
     moduleExtensions <- getModuleExtensions ctx vmName port
@@ -95,10 +91,10 @@ buildImpl ctx vmName = do
       [file] -> pure (cs outPath </> "bin" </> file, port)
       files -> error $ "expected one vm script: " <> show files
 
-runImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runImpl ctx verbosity vmName vmExecutable = do
+runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx verbosity vmName vmExecutable = do
   logStep "Starting VM..." $ do
-    runVm ctx verbosity vmName vmExecutable
+    runVm' ctx verbosity vmName vmExecutable
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -145,8 +141,8 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVm ctx verbosity vmName vmExecutable = do
+runVm' :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runVm' ctx verbosity vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
@@ -189,8 +185,8 @@ streamHandles prefix input output = do
   T.hPutStrLn output $ prefix <> "> " <> stripAnsiEscapeCodes chunk
   streamHandles prefix input output
 
-sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
-sshIntoHostImpl ctx vmName command = do
+sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+sshIntoVmImpl ctx vmName command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
   port <- State.readVmState ctx vmName <&> (^. #port)
   Cradle.run $
