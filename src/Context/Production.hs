@@ -12,7 +12,7 @@ mkContext = do
   storageDir <- XDG.getUserDataDir "vmcli"
   pure $
     Context
-      { registerProcess = const $ pure (),
+      { registeredProcesses = Nothing,
         Context.stdin = System.IO.stdin,
         workingDir,
         storageDir,

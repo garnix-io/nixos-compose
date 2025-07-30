@@ -6,7 +6,6 @@ import Cradle
 import Data.Aeson qualified as Aeson
 import Data.Map.Strict qualified as Map
 import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
-import Data.String.Conversions (cs)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -16,7 +15,7 @@ import State
 import StdLib
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
-import System.FilePath (takeDirectory, (</>))
+import System.FilePath (takeDirectory)
 import System.IO (Handle, IOMode (..), openFile)
 import System.IO qualified
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
