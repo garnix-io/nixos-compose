@@ -53,48 +53,46 @@ listVmsImpl ctx = do
 
 buildVmScriptImpl :: Context -> VmName -> IO (FilePath, Port)
 buildVmScriptImpl ctx vmName = do
-  logStep "Building NixOS config..." $ do
-    port <- getFreePort
-    moduleExtensions <- getModuleExtensions ctx vmName port
-    (Cradle.StdoutTrimmed drvPathJson) <-
-      runWithErrorHandling $
-        Cradle.cmd "nix"
-          & Cradle.setWorkingDir (workingDir ctx)
-          & Cradle.addArgs
-            ( nixStandardFlags
-                <> [ "eval",
-                     ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
-                     "--json",
-                     "--apply",
-                     "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
-                   ]
-            )
-    let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
-          Right t -> t
-          Left err -> error err
+  port <- getFreePort
+  moduleExtensions <- getModuleExtensions ctx vmName port
+  (Cradle.StdoutTrimmed drvPathJson) <-
+    runWithErrorHandling $
+      Cradle.cmd "nix"
+        & Cradle.setWorkingDir (workingDir ctx)
+        & Cradle.addArgs
+          ( nixStandardFlags
+              <> [ "eval",
+                   ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
+                   "--json",
+                   "--apply",
+                   "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
+                 ]
+          )
+  let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
+        Right t -> t
+        Left err -> error err
 
-    (Cradle.StdoutTrimmed outPath) <-
-      runWithErrorHandling $
-        Cradle.cmd "nix"
-          & Cradle.addArgs
-            ( nixStandardFlags
-                <> [ "build",
-                     "--print-out-paths",
-                     "--no-link",
-                     drvPath <> "^*"
-                   ]
-            )
-          & Cradle.setWorkingDir (workingDir ctx)
+  (Cradle.StdoutTrimmed outPath) <-
+    runWithErrorHandling $
+      Cradle.cmd "nix"
+        & Cradle.addArgs
+          ( nixStandardFlags
+              <> [ "build",
+                   "--print-out-paths",
+                   "--no-link",
+                   drvPath <> "^*"
+                 ]
+          )
+        & Cradle.setWorkingDir (workingDir ctx)
 
-    files <- listDirectory (cs outPath </> "bin")
-    case files of
-      [file] -> pure (cs outPath </> "bin" </> file, port)
-      files -> error $ "expected one vm script: " <> show files
+  files <- listDirectory (cs outPath </> "bin")
+  case files of
+    [file] -> pure (cs outPath </> "bin" </> file, port)
+    files -> error $ "expected one vm script: " <> show files
 
 runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
 runVmImpl ctx verbosity vmName vmExecutable = do
-  logStep "Starting VM..." $ do
-    runVm' ctx verbosity vmName vmExecutable
+  runVm' ctx verbosity vmName vmExecutable
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
