@@ -8,3 +8,4 @@ Available commands:
   ssh                      `ssh` into a running vm
   status                   Show the status of running vms
   stop                     Stop a running vm
+  ip                       Print the ip address of a vm (in the virtual network)

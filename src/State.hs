@@ -1,6 +1,7 @@
 module State
   ( -- * global state
     State (..),
+    mkState,
     readState,
     modifyState,
     modifyState_,
@@ -16,6 +17,10 @@ module State
     removeVm,
     getVmFilePath,
     listRunningVms,
+    cleanUpVms,
+
+    -- * IPs
+    getNextIp,
   )
 where
 
@@ -25,6 +30,8 @@ import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text.IO qualified as T
+import Net.IPv4 (IPv4)
+import Net.IPv4 qualified as IPv4
 import Options (VmName (..))
 import StdLib
 import System.Directory
@@ -41,10 +48,19 @@ import Utils (filterMapM)
 
 data State = State
   { vde :: VdeState,
-    vms :: Map VmName VmState
+    vms :: Map VmName VmState,
+    nextIp :: IPv4
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
+
+mkState :: VdeState -> State
+mkState vdeState =
+  State
+    { vde = vdeState,
+      vms = mempty,
+      nextIp = fst ipRange
+    }
 
 readState :: Context -> IO (Maybe State)
 readState ctx = do
@@ -100,7 +116,8 @@ getVdeCtlDir ctx = do
 
 data VmState = VmState
   { port :: Int,
-    pid :: Int
+    pid :: Int,
+    ip :: IPv4
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
@@ -143,12 +160,16 @@ getVmFilePath ctx vmName path = do
   pure $ dir </> path
 
 listRunningVms :: Context -> IO [VmName]
-listRunningVms ctx = modifyState ctx $ \state -> do
-  case state of
-    Nothing -> pure (Nothing, [])
-    Just state -> do
-      running <- filterMapM isRunning (state ^. #vms)
-      pure (Just $ state & #vms .~ running, Map.keys running)
+listRunningVms ctx = modifyState ctx $ \case
+  Nothing -> pure (Nothing, [])
+  Just state -> do
+    state' <- cleanUpVms ctx state
+    pure (Just state', Map.keys $ state' ^. #vms)
+
+cleanUpVms :: Context -> State -> IO State
+cleanUpVms ctx state = do
+  running <- filterMapM isRunning (state ^. #vms)
+  pure $ state & #vms .~ running
   where
     isRunning :: VmName -> VmState -> IO Bool
     isRunning vmName vmState = do
@@ -157,3 +178,19 @@ listRunningVms ctx = modifyState ctx $ \state -> do
         T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
         removeVmDir ctx vmName
       pure isRunning
+
+-- * IPs
+
+ipRange :: (IPv4, IPv4)
+ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)
+
+getNextIp :: Context -> IO IPv4
+getNextIp ctx = modifyState ctx $ \case
+  Nothing -> error "getNextIp: state not initialized"
+  Just state -> do
+    let findIp candidate
+          | candidate > snd ipRange = findIp (fst ipRange)
+          | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
+          | otherwise = candidate
+    let ip = findIp $ succ $ state ^. #nextIp
+    pure (Just $ state & #nextIp .~ ip, state ^. #nextIp)
