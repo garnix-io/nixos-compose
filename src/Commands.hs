@@ -88,14 +88,18 @@ ssh ctx vmName command = do
   throwIO exitCode
 
 status :: Context -> [VmName] -> IO ()
-status ctx vmName = do
+status ctx args = do
+  configuredVms <- listVms (nixVms ctx) ctx
   runningVms <- sort <$> State.listRunningVms ctx
   when (null runningVms) $ do
     Vde.stop ctx
-  T.putStr $ T.unlines $ case vmName of
-    [] -> flip map runningVms $ \runningVm ->
-      vmNameToText runningVm <> ": running"
-    vmNames -> flip map vmNames $ \vmName ->
-      if vmName `elem` runningVms
-        then vmNameToText vmName <> ": running"
-        else vmNameToText vmName <> ": not running"
+  T.putStr $ T.unlines $ case configuredVms of
+    [] -> ["no vms configured"]
+    configuredVms -> do
+      let vmNames = case args of
+            [] -> configuredVms
+            vmNames -> vmNames
+      flip map vmNames $ \vmName ->
+        if vmName `elem` runningVms
+          then vmNameToText vmName <> ": running"
+          else vmNameToText vmName <> ": not running"

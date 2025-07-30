@@ -21,12 +21,29 @@ spec = do
         pure $ defaultGolden "stderr" (cs (result ^. #stderr))
 
   describe "status" $ do
-    it "without argument lists the status of all vms" $ do
-      withMockContext ["a", "b"] $ \ctx -> do
-        _ <- assertSuccess $ test ctx ["start", "a"]
-        _ <- assertSuccess $ test ctx ["start", "b"]
-        result <- assertSuccess $ test ctx ["status"]
-        result ^. #stdout `shouldBe` "a: running\nb: running\n"
+    context "without vm arguments" $ do
+      it "lists the status of all vms" $ do
+        withMockContext ["a", "b"] $ \ctx -> do
+          _ <- assertSuccess $ test ctx ["start", "a"]
+          _ <- assertSuccess $ test ctx ["start", "b"]
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "a: running\nb: running\n"
+
+      it "lists all vms when some are running" $ do
+        withMockContext ["a", "b"] $ \ctx -> do
+          _ <- assertSuccess $ test ctx ["start", "a"]
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "a: running\nb: not running\n"
+
+      it "lists all vms when none are running" $ do
+        withMockContext ["a", "b"] $ \ctx -> do
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "a: not running\nb: not running\n"
+
+      it "prints a nice message when no vms are configured" $ do
+        withMockContext [] $ \ctx -> do
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "no vms configured\n"
 
     it "accepts multiple vm names" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
