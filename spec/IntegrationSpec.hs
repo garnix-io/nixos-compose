@@ -1,6 +1,3 @@
-{-# LANGUAGE DuplicateRecordFields #-}
-{-# LANGUAGE OverloadedRecordDot #-}
-
 module IntegrationSpec where
 
 import Context
@@ -121,8 +118,8 @@ spec = do
       withContext $ \ctx -> do
         writeStandardFlake ctx Nothing
         _ <- assertSuccess $ test ctx ["start", "server"]
-        B.hPutStr ctx.stdin "echo foo\nexit\n"
-        hSeek ctx.stdin AbsoluteSeek 0
+        B.hPutStr (ctx ^. #stdin) "echo foo\nexit\n"
+        hSeek (ctx ^. #stdin) AbsoluteSeek 0
         (stdout <$> assertSuccess (test ctx ["ssh", "server"])) `shouldReturn` "foo\n\ESC]0;\a"
 
     it "can start multiple vms" $ do
@@ -229,7 +226,7 @@ writeStandardFlake ctx addedModule = do
               };
             }
           |]
-  T.writeFile (ctx.workingDir </> "flake.nix") flake
+  T.writeFile (ctx ^. #workingDir </> "flake.nix") flake
 
 nixpkgs2505Commit :: Text
 nixpkgs2505Commit = "3ff0e34b1383648053bba8ed03f201d3466f90c9"
