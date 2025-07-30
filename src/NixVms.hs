@@ -90,10 +90,6 @@ buildVmScriptImpl ctx vmName = do
     [file] -> pure (cs outPath </> "bin" </> file, port)
     files -> error $ "expected one vm script: " <> show files
 
-runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVmImpl ctx verbosity vmName vmExecutable = do
-  runVm' ctx verbosity vmName vmExecutable
-
 nixStandardFlags :: [Text]
 nixStandardFlags =
   [ "--extra-experimental-features",
@@ -132,8 +128,8 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVm' :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVm' ctx verbosity vmName vmExecutable = do
+runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx verbosity vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
