@@ -60,13 +60,13 @@ start ctx verbosity startOptions = do
           runWithErrorHandling $
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
+        ip <- getNextIp ctx
         (vmScript, port) <- logStep "Building NixOS config..." $ do
-          buildVmScript (nixVms ctx) ctx vmName
+          buildVmScript (nixVms ctx) ctx vmName ip
         logStep "Starting VM..." $ do
           ph <- runVm (nixVms ctx) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <- getPid ph <&> fromMaybe (error "no pid")
-          ip <- getNextIp ctx
           State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port, ip})
           waitForVm ctx vmName
 

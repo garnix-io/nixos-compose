@@ -174,6 +174,7 @@ spec = do
         _ <- assertSuccess $ test ctx ["start", "a", "b"]
         aIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "a"])
         bIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "b"])
+        print (aIp, bIp)
         result <- assertSuccess $ test ctx ["ssh", "a", "ping -c 1 " <> bIp]
         result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
         result <- assertSuccess $ test ctx ["ssh", "b", "ping -c 1 " <> aIp]
