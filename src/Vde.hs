@@ -36,7 +36,7 @@ startVde ctx = do
       (System.Process.proc "vde_switch" ["--sock", ctlDir, "--dirmode", "0700", "--hub"])
         { std_in = UseHandle stdinPipe -- `CreatePipe :: StdStream` doesn't work reliably
         }
-  registerProcess ctx handle
+  registerProcess ctx VdeSwitch handle
   pid <- getPid handle <&> fromMaybe (error "no pid")
   pure $ VdeState {pid = fromIntegral pid}
 

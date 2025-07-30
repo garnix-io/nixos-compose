@@ -61,7 +61,7 @@ start ctx verbosity startOptions = do
           buildVmScript (nixVms ctx) ctx vmName
         logStep "Starting VM..." $ do
           ph <- runVm (nixVms ctx) ctx verbosity vmName vmScript
-          registerProcess ctx ph
+          registerProcess ctx (Vm vmName) ph
           pid <- getPid ph <&> fromMaybe (error "no pid")
           State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port})
           waitForVm ctx vmName

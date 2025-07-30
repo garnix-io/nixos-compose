@@ -6,6 +6,7 @@ import Context
 import Control.Concurrent (modifyMVar_, newMVar, readMVar)
 import Control.Exception (finally)
 import Cradle qualified
+import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.String (IsString)
 import Data.String.Conversions
@@ -17,7 +18,6 @@ import Run (run)
 import State
 import StdLib
 import System.Environment (lookupEnv)
-import System.FilePath ((</>))
 import System.IO (hPutStr)
 import System.IO qualified
 import System.IO.Silently
@@ -62,10 +62,10 @@ withContext nixVms action = do
   withSystemTempFile "test-stdin" $ \_stdinFile stdinHandle -> do
     withSystemTempDirectory "test-working-dir" $ \workingDir -> do
       withSystemTempDirectory "test-storage-dir" $ \storageDir -> do
-        processHandles <- newMVar []
+        processHandles <- newMVar mempty
         let ctx =
               Context
-                { registerProcess = \handle -> modifyMVar_ processHandles $ \h -> pure $ h <> [handle],
+                { registeredProcesses = Just processHandles,
                   stdin = stdinHandle,
                   workingDir = workingDir,
                   storageDir = storageDir </> "vmcli",
@@ -74,10 +74,26 @@ withContext nixVms action = do
         action ctx
           `finally` (readMVar processHandles >>= mapM_ endProcess)
 
-endProcess :: ProcessHandle -> IO ExitCode
+endProcess :: ProcessHandle -> IO ()
 endProcess handle = do
   terminateProcess handle
-  waitForProcess handle
+  _ <- waitForProcess handle
+  pure ()
+
+stopProcess :: Context -> ProcessType -> IO ()
+stopProcess ctx typ = case ctx ^. #registeredProcesses of
+  Nothing -> error "registeredProcesses is Nothing"
+  Just mvar -> modifyMVar_ mvar $ \map -> case Map.lookup typ map of
+    Nothing ->
+      error $
+        cs $
+          "cannot find executable: "
+            <> cs (show typ)
+            <> " in "
+            <> T.intercalate ", " (fmap (cs . show) (Map.keys map))
+    Just handle -> do
+      endProcess handle
+      pure $ Map.delete typ map
 
 instance IsString VmName where
   fromString :: String -> VmName

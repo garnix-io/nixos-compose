@@ -24,7 +24,6 @@ import Data.Aeson
 import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.String.Conversions (cs)
 import Data.Text.IO qualified as T
 import Options (VmName (..))
 import StdLib
@@ -36,7 +35,6 @@ import System.Directory
     removeFile,
   )
 import System.FileLock
-import System.FilePath ((</>))
 import Utils (filterMapM)
 
 -- global state

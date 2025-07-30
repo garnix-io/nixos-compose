@@ -15,7 +15,6 @@ import Options (VmName (..))
 import State (readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
-import System.FilePath ((</>))
 import System.IO (SeekMode (..), hSeek)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)

@@ -1,6 +1,9 @@
 module Context where
 
+import Control.Concurrent (MVar, modifyMVar_)
 import Cradle qualified
+import Data.Map (Map)
+import Data.Map qualified as Map
 import Options (Verbosity, VmName)
 import StdLib
 import System.IO
@@ -8,13 +11,24 @@ import System.Process
 import Utils (Port)
 
 data Context = Context
-  { registerProcess :: ProcessHandle -> IO (),
+  { registeredProcesses :: Maybe (MVar (Map ProcessType ProcessHandle)),
     stdin :: Handle,
     workingDir :: FilePath,
     storageDir :: FilePath,
     nixVms :: NixVms
   }
   deriving stock (Generic)
+
+data ProcessType
+  = VdeSwitch
+  | Vm VmName
+  deriving stock (Show, Eq, Ord)
+
+registerProcess :: Context -> ProcessType -> ProcessHandle -> IO ()
+registerProcess ctx typ handle = case ctx ^. #registeredProcesses of
+  Nothing -> pure ()
+  Just processes -> modifyMVar_ processes $ \map -> do
+    pure (Map.insert typ handle map)
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],

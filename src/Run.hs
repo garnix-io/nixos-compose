@@ -5,7 +5,6 @@ import Context (Context)
 import Context.Production qualified
 import Control.Exception (SomeException, fromException)
 import Control.Exception.Safe (try)
-import Data.String.Conversions (cs)
 import Data.Text hiding (elem)
 import Options
 import Options.Applicative

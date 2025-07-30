@@ -3,8 +3,10 @@ module StdLib
     (&),
     (.~),
     (<&>),
+    (</>),
     (?~),
     (^.),
+    cs,
     ExitCode (..),
     forM,
     forM_,
@@ -27,6 +29,8 @@ import Data.Generics.Labels ()
 import Data.Int (Int64)
 import Data.List (sort)
 import Data.Maybe (fromMaybe, mapMaybe)
+import Data.String.Conversions (cs)
 import Data.Text (Text)
 import GHC.Generics (Generic)
 import System.Exit (ExitCode (..))
+import System.FilePath ((</>))
