@@ -102,13 +102,6 @@ nixStandardFlags =
     "nix-command flakes"
   ]
 
-logStep :: Text -> IO a -> IO a
-logStep log action = do
-  T.hPutStrLn System.IO.stderr log
-  result <- action
-  T.hPutStrLn System.IO.stderr "Done"
-  pure result
-
 getModuleExtensions :: Context -> VmName -> Int -> IO Text
 getModuleExtensions ctx vmName port = do
   publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"

@@ -1,6 +1,5 @@
 module Utils where
 
-import Control.Exception.Safe (throwIO)
 import Control.Monad (filterM)
 import Cradle
 import Cradle.ProcessConfiguration qualified
@@ -10,6 +9,7 @@ import Data.String.Conversions (cs)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Debug.Trace qualified
+import StdLib
 import System.IO (hPrint, stderr)
 
 dbg :: (Show a) => a -> IO ()
@@ -17,6 +17,13 @@ dbg = hPrint stderr
 
 trace :: (Show a) => a -> a
 trace = Debug.Trace.traceShowId
+
+logStep :: Text -> IO a -> IO a
+logStep log action = do
+  T.hPutStrLn System.IO.stderr log
+  result <- action
+  T.hPutStrLn System.IO.stderr "Done"
+  pure result
 
 runWithErrorHandling :: (Output o) => ProcessConfiguration -> IO o
 runWithErrorHandling pc = do
