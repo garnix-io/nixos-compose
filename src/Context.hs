@@ -18,6 +18,7 @@ data Context = Context
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
-    buildAndRun :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port),
-    sshIntoHost :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+    buildVmScript :: Context -> VmName -> IO (FilePath, Port),
+    runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
+    sshIntoVm :: forall o. (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
   }

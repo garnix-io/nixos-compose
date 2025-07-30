@@ -27,8 +27,9 @@ production :: NixVms
 production =
   NixVms
     { listVms = listVmsImpl,
-      buildAndRun = buildAndRunImpl,
-      sshIntoHost = sshIntoHostImpl
+      buildVmScript = buildVmScriptImpl,
+      runVm = runVmImpl,
+      sshIntoVm = sshIntoVmImpl
     }
 
 listVmsImpl :: Context -> IO [VmName]
@@ -50,61 +51,50 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildAndRunImpl :: Context -> Verbosity -> VmName -> IO (ProcessHandle, Port)
-buildAndRunImpl ctx verbosity vmName = do
-  (vmExecutable, port) <- logStep "Building NixOS config..." $ do
-    port <- getFreePort
-    moduleExtensions <- getModuleExtensions ctx vmName port
-    (Cradle.StdoutTrimmed drvPathJson) <-
-      runWithErrorHandling $
-        Cradle.cmd "nix"
-          & Cradle.setWorkingDir (workingDir ctx)
-          & Cradle.addArgs
-            ( nixStandardFlags
-                <> [ "eval",
-                     ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
-                     "--json",
-                     "--apply",
-                     "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
-                   ]
-            )
-    let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
-          Right t -> t
-          Left err -> error err
+buildVmScriptImpl :: Context -> VmName -> IO (FilePath, Port)
+buildVmScriptImpl ctx vmName = do
+  port <- getFreePort
+  moduleExtensions <- getModuleExtensions ctx vmName port
+  (Cradle.StdoutTrimmed drvPathJson) <-
+    runWithErrorHandling $
+      Cradle.cmd "nix"
+        & Cradle.setWorkingDir (workingDir ctx)
+        & Cradle.addArgs
+          ( nixStandardFlags
+              <> [ "eval",
+                   ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
+                   "--json",
+                   "--apply",
+                   "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
+                 ]
+          )
+  let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
+        Right t -> t
+        Left err -> error err
 
-    (Cradle.StdoutTrimmed outPath) <-
-      runWithErrorHandling $
-        Cradle.cmd "nix"
-          & Cradle.addArgs
-            ( nixStandardFlags
-                <> [ "build",
-                     "--print-out-paths",
-                     "--no-link",
-                     drvPath <> "^*"
-                   ]
-            )
-          & Cradle.setWorkingDir (workingDir ctx)
+  (Cradle.StdoutTrimmed outPath) <-
+    runWithErrorHandling $
+      Cradle.cmd "nix"
+        & Cradle.addArgs
+          ( nixStandardFlags
+              <> [ "build",
+                   "--print-out-paths",
+                   "--no-link",
+                   drvPath <> "^*"
+                 ]
+          )
+        & Cradle.setWorkingDir (workingDir ctx)
 
-    files <- listDirectory (cs outPath </> "bin")
-    case files of
-      [file] -> pure (cs outPath </> "bin" </> file, port)
-      files -> error $ "expected one vm script: " <> show files
-  logStep "Starting VM..." $ do
-    handle <- runVm ctx verbosity vmName vmExecutable
-    pure (handle, port)
+  files <- listDirectory (cs outPath </> "bin")
+  case files of
+    [file] -> pure (cs outPath </> "bin" </> file, port)
+    files -> error $ "expected one vm script: " <> show files
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
   [ "--extra-experimental-features",
     "nix-command flakes"
   ]
-
-logStep :: Text -> IO a -> IO a
-logStep log action = do
-  T.hPutStrLn System.IO.stderr log
-  result <- action
-  T.hPutStrLn System.IO.stderr "Done"
-  pure result
 
 getModuleExtensions :: Context -> VmName -> Int -> IO Text
 getModuleExtensions ctx vmName port = do
@@ -138,8 +128,8 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVm ctx verbosity vmName vmExecutable = do
+runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx verbosity vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
@@ -182,8 +172,8 @@ streamHandles prefix input output = do
   T.hPutStrLn output $ prefix <> "> " <> stripAnsiEscapeCodes chunk
   streamHandles prefix input output
 
-sshIntoHostImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
-sshIntoHostImpl ctx vmName command = do
+sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+sshIntoVmImpl ctx vmName command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
   port <- State.readVmState ctx vmName <&> (^. #port)
   Cradle.run $

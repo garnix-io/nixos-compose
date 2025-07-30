@@ -1,7 +1,7 @@
 module Run where
 
 import Commands
-import Context
+import Context (Context)
 import Context.Production qualified
 import Control.Exception (SomeException, fromException)
 import Control.Exception.Safe (try)
