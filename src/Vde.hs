@@ -14,22 +14,18 @@ import System.Process
 
 startIfNotRunning :: Context -> IO ()
 startIfNotRunning ctx = do
-  modifyState_ ctx $ \case
+  modifyState_ ctx $ \state -> case state ^. #vde of
     Nothing -> do
       vdeState <- startVde ctx
       pure $ Just $ emptyState & #vde ?~ vdeState
-    Just state -> case state ^. #vde of
-      Nothing -> do
-        vdeState <- startVde ctx
-        pure $ Just $ emptyState & #vde ?~ vdeState
-      Just vdeState -> do
-        isRunning <- doesDirectoryExist $ "/proc/" <> show (vdeState ^. #pid)
-        if isRunning
-          then pure $ Just state
-          else do
-            T.putStrLn "WARN: vde_switch crashed, restarting"
-            vdeState <- startVde ctx
-            pure $ Just $ state & #vde ?~ vdeState
+    Just vdeState -> do
+      isRunning <- doesDirectoryExist $ "/proc/" <> show (vdeState ^. #pid)
+      if isRunning
+        then pure $ Just state
+        else do
+          T.putStrLn "WARN: vde_switch crashed, restarting"
+          vdeState <- startVde ctx
+          pure $ Just $ state & #vde ?~ vdeState
 
 startVde :: Context -> IO VdeState
 startVde ctx = do
@@ -46,11 +42,9 @@ startVde ctx = do
 
 stop :: Context -> IO ()
 stop ctx = do
-  modifyState_ ctx $ \case
-    Nothing -> pure Nothing
-    Just state -> case state ^. #vde of
-      Nothing -> pure $ Just state
-      Just vdeState -> do
-        signalProcess sigKILL $ fromIntegral $ vdeState ^. #pid
-        removeDirectoryRecursive =<< getVdeCtlDir ctx
-        pure Nothing
+  modifyState_ ctx $ \state -> case state ^. #vde of
+    Nothing -> pure $ Just state
+    Just vdeState -> do
+      signalProcess sigKILL $ fromIntegral $ vdeState ^. #pid
+      removeDirectoryRecursive =<< getVdeCtlDir ctx
+      pure Nothing

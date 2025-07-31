@@ -109,15 +109,11 @@ status ctx args = do
           else vmNameToText vmName <> ": not running"
 
 ip :: Context -> VmName -> IO ()
-ip ctx vm = modifyState_ ctx $ \case
-  Nothing -> do
-    T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
-    throwIO $ ExitFailure 1
-  Just state -> do
-    state' <- cleanUpVms ctx state
-    case Map.lookup vm (state' ^. #vms) of
-      Nothing -> do
-        T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
-        throwIO $ ExitFailure 1
-      Just vmState -> T.putStrLn $ IPv4.encode $ vmState ^. #ip
-    pure $ Just state'
+ip ctx vm = modifyState_ ctx $ \state -> do
+  state' <- cleanUpVms ctx state
+  case Map.lookup vm (state' ^. #vms) of
+    Nothing -> do
+      T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
+      throwIO $ ExitFailure 1
+    Just vmState -> T.putStrLn $ IPv4.encode $ vmState ^. #ip
+  pure $ Just state'

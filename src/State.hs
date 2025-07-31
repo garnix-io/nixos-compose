@@ -72,22 +72,22 @@ readState ctx = do
         then emptyState
         else either error id (eitherDecode' (cs contents) :: Either String State)
 
-modifyState :: Context -> (Maybe State -> IO (Maybe State, a)) -> IO a
+modifyState :: Context -> (State -> IO (Maybe State, a)) -> IO a
 modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
     contents <- T.readFile file
     let previous =
           if contents == ""
-            then Nothing
-            else Just (either error id (eitherDecode' (cs contents) :: Either String State))
+            then emptyState
+            else either error id (eitherDecode' (cs contents) :: Either String State)
     (next, a) <- action previous
     case next of
       Just next -> Data.ByteString.Lazy.writeFile file (encode (next :: State))
       Nothing -> removeFile file
     pure a
 
-modifyState_ :: Context -> (Maybe State -> IO (Maybe State)) -> IO ()
+modifyState_ :: Context -> (State -> IO (Maybe State)) -> IO ()
 modifyState_ ctx action = modifyState ctx $ \state -> do
   new <- action state
   pure (new, ())
@@ -131,17 +131,14 @@ readVmState ctx vmName = do
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
 writeVmState ctx vmName vmState = do
-  modifyState_ ctx $ \case
-    Nothing -> error "no state file found"
-    Just state -> do
-      pure $ Just $ state & #vms %~ Map.insert vmName vmState
+  modifyState_ ctx $ \state -> do
+    pure $ Just $ state & #vms %~ Map.insert vmName vmState
 
 removeVm :: Context -> VmName -> IO ()
 removeVm ctx vmName = do
   removeVmDir ctx vmName
-  modifyState_ ctx $ \case
-    Nothing -> pure Nothing
-    Just state -> pure $ Just $ state & #vms %~ Map.delete vmName
+  modifyState_ ctx $ \state -> do
+    pure $ Just $ state & #vms %~ Map.delete vmName
 
 removeVmDir :: Context -> VmName -> IO ()
 removeVmDir ctx vmName = do
@@ -157,11 +154,9 @@ getVmFilePath ctx vmName path = do
   pure $ dir </> path
 
 listRunningVms :: Context -> IO [VmName]
-listRunningVms ctx = modifyState ctx $ \case
-  Nothing -> pure (Nothing, [])
-  Just state -> do
-    state' <- cleanUpVms ctx state
-    pure (Just state', Map.keys $ state' ^. #vms)
+listRunningVms ctx = modifyState ctx $ \state -> do
+  state' <- cleanUpVms ctx state
+  pure (Just state', Map.keys $ state' ^. #vms)
 
 cleanUpVms :: Context -> State -> IO State
 cleanUpVms ctx state = do
@@ -182,12 +177,10 @@ ipRange :: (IPv4, IPv4)
 ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)
 
 getNextIp :: Context -> IO IPv4
-getNextIp ctx = modifyState ctx $ \case
-  Nothing -> error "getNextIp: state not initialized"
-  Just state -> do
-    let findIp candidate
-          | candidate > snd ipRange = findIp (fst ipRange)
-          | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
-          | otherwise = candidate
-    let ip = findIp $ state ^. #nextIp
-    pure (Just $ state & #nextIp .~ succ ip, ip)
+getNextIp ctx = modifyState ctx $ \state -> do
+  let findIp candidate
+        | candidate > snd ipRange = findIp (fst ipRange)
+        | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
+        | otherwise = candidate
+  let ip = findIp $ state ^. #nextIp
+  pure (Just $ state & #nextIp .~ succ ip, ip)
