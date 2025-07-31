@@ -77,12 +77,12 @@ stop ctx vmName = do
 
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do
-  (StdoutRaw _, StderrRaw _, exitCode) <- sshIntoVm (nixVms ctx) ctx vmName ["true"]
+  (StdoutRaw _, StderrRaw _, exitCode) <- sshIntoVm (nixVms ctx) ctx vmName "true"
   when (exitCode /= Cradle.ExitSuccess) $ do
     threadDelay 1_000_000
     waitForVm ctx vmName
 
-ssh :: Context -> VmName -> [Text] -> IO ()
+ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
   exitCode :: ExitCode <- sshIntoVm (nixVms ctx) ctx vmName command
   throwIO exitCode
