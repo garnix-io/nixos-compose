@@ -116,4 +116,4 @@ ip ctx vm = modifyState_ ctx $ \state -> do
       T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
       throwIO $ ExitFailure 1
     Just vmState -> T.putStrLn $ IPv4.encode $ vmState ^. #ip
-  pure $ Just state'
+  pure state'

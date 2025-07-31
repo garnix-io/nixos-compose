@@ -29,6 +29,7 @@ import Data.Aeson
 import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Data.Maybe (isNothing)
 import Data.Text.IO qualified as T
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
@@ -42,6 +43,7 @@ import System.Directory
     removeFile,
   )
 import System.FileLock
+import System.IO qualified
 import Utils (filterMapM)
 
 -- global state
@@ -72,7 +74,7 @@ readState ctx = do
         then emptyState
         else either error id (eitherDecode' (cs contents) :: Either String State)
 
-modifyState :: Context -> (State -> IO (Maybe State, a)) -> IO a
+modifyState :: Context -> (State -> IO (State, a)) -> IO a
 modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
@@ -82,12 +84,14 @@ modifyState ctx action = do
             then emptyState
             else either error id (eitherDecode' (cs contents) :: Either String State)
     (next, a) <- action previous
-    case next of
-      Just next -> Data.ByteString.Lazy.writeFile file (encode (next :: State))
-      Nothing -> removeFile file
+    if Map.null (next ^. #vms) && isNothing (next ^. #vde)
+      then do
+        removeFile file
+      else do
+        Data.ByteString.Lazy.writeFile file (encode (next :: State))
     pure a
 
-modifyState_ :: Context -> (State -> IO (Maybe State)) -> IO ()
+modifyState_ :: Context -> (State -> IO State) -> IO ()
 modifyState_ ctx action = modifyState ctx $ \state -> do
   new <- action state
   pure (new, ())
@@ -132,13 +136,13 @@ readVmState ctx vmName = do
 writeVmState :: Context -> VmName -> VmState -> IO ()
 writeVmState ctx vmName vmState = do
   modifyState_ ctx $ \state -> do
-    pure $ Just $ state & #vms %~ Map.insert vmName vmState
+    pure $ state & #vms %~ Map.insert vmName vmState
 
 removeVm :: Context -> VmName -> IO ()
 removeVm ctx vmName = do
   removeVmDir ctx vmName
   modifyState_ ctx $ \state -> do
-    pure $ Just $ state & #vms %~ Map.delete vmName
+    pure $ state & #vms %~ Map.delete vmName
 
 removeVmDir :: Context -> VmName -> IO ()
 removeVmDir ctx vmName = do
@@ -156,7 +160,7 @@ getVmFilePath ctx vmName path = do
 listRunningVms :: Context -> IO [VmName]
 listRunningVms ctx = modifyState ctx $ \state -> do
   state' <- cleanUpVms ctx state
-  pure (Just state', Map.keys $ state' ^. #vms)
+  pure (state', Map.keys $ state' ^. #vms)
 
 cleanUpVms :: Context -> State -> IO State
 cleanUpVms ctx state = do
@@ -183,4 +187,4 @@ getNextIp ctx = modifyState ctx $ \state -> do
         | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
         | otherwise = candidate
   let ip = findIp $ state ^. #nextIp
-  pure (Just $ state & #nextIp .~ succ ip, ip)
+  pure (state & #nextIp .~ succ ip, ip)

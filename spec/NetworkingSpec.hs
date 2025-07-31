@@ -6,7 +6,7 @@ import Control.Monad (replicateM)
 import Cradle
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), emptyState, getNextIp, modifyState_, readState, readVmState, writeVmState)
+import State (getNextIp, readState, readVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
@@ -119,21 +119,11 @@ spec = do
         stdout <$> assertSuccess (test ctx ["ip", "c"]) `shouldReturn` "10.0.0.5\n"
 
     it "wraps around and doesn't assign ips that are in use" $ do
-      withMockContext [] $ \ctx -> do
-        modifyState_ ctx $ \_ -> do
-          pure $ Just emptyState
-        ips <- replicateM 252 $ do
+      withMockContext ["a"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["start", "a"]
+        ips <- replicateM 251 $ do
           getNextIp ctx
-        ips `shouldBe` [IPv4.fromOctets 10 0 0 2 .. IPv4.fromOctets 10 0 0 253]
-        writeVmState
-          ctx
-          "a"
-          ( VmState
-              { port = 0,
-                pid = 0,
-                ip = fromJust (IPv4.decode "10.0.0.3")
-              }
-          )
+        ips `shouldBe` [IPv4.fromOctets 10 0 0 3 .. IPv4.fromOctets 10 0 0 253]
         ips <- replicateM 3 $ do
           IPv4.encode <$> getNextIp ctx
-        ips `shouldBe` ["10.0.0.254", "10.0.0.2", "10.0.0.4"]
+        ips `shouldBe` ["10.0.0.254", "10.0.0.3", "10.0.0.4"]
