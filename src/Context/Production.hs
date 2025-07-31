@@ -9,7 +9,7 @@ import System.IO
 mkContext :: IO Context
 mkContext = do
   workingDir <- getCurrentDirectory
-  storageDir <- XDG.getUserDataDir "vmcli"
+  storageDir <- XDG.getUserDataDir "nixos-compose"
   pure $
     Context
       { registeredProcesses = Nothing,

@@ -68,7 +68,7 @@ withContext nixVms action = do
                 { registeredProcesses = Just processHandles,
                   stdin = stdinHandle,
                   workingDir = workingDir,
-                  storageDir = storageDir </> "vmcli",
+                  storageDir = storageDir </> "nixos-compose",
                   nixVms
                 }
         action ctx

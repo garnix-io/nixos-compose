@@ -1,6 +1,6 @@
 Missing: COMMAND
 
-Usage: vmcli COMMAND
+Usage: nixos-compose COMMAND
 
 Available commands:
   list                     List all configured vms
