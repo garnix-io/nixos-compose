@@ -6,7 +6,7 @@ where
 
 import Context
 import Data.Text.IO qualified as T
-import State (State (..), VdeState (..), getVdeCtlDir, modifyState_)
+import State (VdeState (..), getVdeCtlDir, mkState, modifyState_)
 import StdLib
 import System.Directory (doesDirectoryExist, removeDirectoryRecursive)
 import System.Posix (sigKILL, signalProcess)
@@ -17,7 +17,7 @@ startIfNotRunning ctx = do
   modifyState_ ctx $ \case
     Nothing -> do
       vdeState <- startVde ctx
-      pure $ Just $ State {vde = vdeState, vms = mempty}
+      pure $ Just $ mkState vdeState
     Just state -> do
       isRunning <- doesDirectoryExist $ "/proc/" <> show (state ^. #vde . #pid)
       if isRunning

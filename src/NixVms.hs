@@ -9,6 +9,8 @@ import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Net.IPv4 (IPv4)
+import Net.IPv4 qualified as IPv4
 import Network.Socket.Free (getFreePort)
 import Options (Verbosity (..), VmName (..))
 import State
@@ -50,10 +52,10 @@ listVmsImpl ctx = do
     Left err -> error err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildVmScriptImpl :: Context -> VmName -> IO (FilePath, Port)
-buildVmScriptImpl ctx vmName = do
+buildVmScriptImpl :: Context -> VmName -> IPv4 -> IO (FilePath, Port)
+buildVmScriptImpl ctx vmName ip = do
   port <- getFreePort
-  moduleExtensions <- getModuleExtensions ctx vmName port
+  moduleExtensions <- getModuleExtensions ctx vmName port ip
   (Cradle.StdoutTrimmed drvPathJson) <-
     runWithErrorHandling $
       Cradle.cmd "nix"
@@ -95,8 +97,8 @@ nixStandardFlags =
     "nix-command flakes"
   ]
 
-getModuleExtensions :: Context -> VmName -> Int -> IO Text
-getModuleExtensions ctx vmName port = do
+getModuleExtensions :: Context -> VmName -> Port -> IPv4 -> IO Text
+getModuleExtensions ctx vmName port ip = do
   publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"
   pure $
     cs
@@ -115,6 +117,10 @@ getModuleExtensions ctx vmName port = do
             graphics = false;
             forwardPorts = [{ from = "host"; host.port = #{port}; guest.port = 22; }];
           };
+          networking.interfaces.eth1.ipv4.addresses = [{
+            address = "#{IPv4.encode ip :: Text}";
+            prefixLength = 24;
+          }];
         }
       |]
 

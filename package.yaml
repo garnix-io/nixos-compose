@@ -64,6 +64,7 @@ dependencies:
   - filepath
   - generic-lens
   - interpolate
+  - ip
   - lens
   - optparse-applicative
   - port-utils

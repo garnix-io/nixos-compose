@@ -104,7 +104,7 @@ withMockContext vmNames action = do
   let mockNixVms =
         NixVms
           { listVms = \_ctx -> pure vmNames,
-            buildVmScript = \_ctx _vmName -> do
+            buildVmScript = \_ctx _vmName _ip -> do
               port <- getFreePort
               pure ("/fake-vm-script", port),
             runVm =

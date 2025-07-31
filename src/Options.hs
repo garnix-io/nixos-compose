@@ -34,6 +34,7 @@ data Command
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
   | Stop {vmName :: VmName}
+  | Ip {vmName :: VmName}
   deriving stock (Show, Generic)
 
 instance Parseable Command where
@@ -68,6 +69,12 @@ instance Parseable Command where
             ( info
                 (Stop <$> parser)
                 (progDesc "Stop a running vm")
+            )
+          <> command
+            "ip"
+            ( info
+                (Ip <$> parser)
+                (progDesc "Print the ip address of a vm (in the virtual network)")
             )
       )
 
