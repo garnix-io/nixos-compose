@@ -177,7 +177,7 @@ streamHandles prefix input output = do
   T.hPutStrLn output $ prefix <> "> " <> stripAnsiEscapeCodes chunk
   streamHandles prefix input output
 
-sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> [Text] -> IO o
+sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
 sshIntoVmImpl ctx vmName command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
   port <- State.readVmState ctx vmName <&> (^. #port)
@@ -185,19 +185,18 @@ sshIntoVmImpl ctx vmName command = do
     Cradle.cmd "ssh"
       & Cradle.setStdinHandle (ctx ^. #stdin)
       & Cradle.addArgs
-        ( [ "-i",
-            cs vmKeyPath,
-            "-l",
-            "vmuser",
-            "-o",
-            "StrictHostKeyChecking=no",
-            "-o",
-            "UserKnownHostsFile=/dev/null",
-            "-o",
-            "ConnectTimeout=2",
-            "-p",
-            cs (show port),
-            "localhost"
-          ]
-            <> command
-        )
+        [ "-i",
+          cs vmKeyPath,
+          "-l",
+          "vmuser",
+          "-o",
+          "StrictHostKeyChecking=no",
+          "-o",
+          "UserKnownHostsFile=/dev/null",
+          "-o",
+          "ConnectTimeout=2",
+          "-p",
+          cs (show port),
+          "localhost",
+          command
+        ]

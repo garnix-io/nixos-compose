@@ -27,7 +27,7 @@ run ctx args =
       List -> list ctx
       Start verbosity vmNames -> start ctx verbosity vmNames
       Stop vmName -> stop ctx vmName
-      Ssh vmName command -> ssh ctx vmName command
+      Ssh vmName command -> ssh ctx vmName (Data.Text.unwords command)
       Status vmNames -> status ctx vmNames
       Ip vmName -> ip ctx vmName
     pure ExitSuccess

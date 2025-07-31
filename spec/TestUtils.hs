@@ -119,18 +119,14 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 pure ph,
-            sshIntoVm = \ctx vmName args -> do
+            sshIntoVm = \ctx vmName command -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
               _state <- State.readVmState ctx vmName
-              case args of
-                [] -> error "nix vm mock: sshIntoHost: no args given"
-                command : args ->
-                  withSystemTempDirectory "fake-ssh" $ \tempDir -> do
-                    -- this emulates ssh's behavior
-                    Cradle.run $
-                      Cradle.cmd "bash"
-                        & Cradle.addArgs ["-c", T.unwords (command : args)]
-                        & Cradle.setWorkingDir tempDir
+              withSystemTempDirectory "fake-ssh" $ \tempDir -> do
+                Cradle.run $
+                  Cradle.cmd "bash"
+                    & Cradle.addArgs ["-c", command]
+                    & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action
