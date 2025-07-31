@@ -1,34 +1,21 @@
-module Vde
-  ( startIfNotRunning,
-    stop,
-  )
-where
+module Vde where
 
 import Context
-import Data.Text.IO qualified as T
-import State (VdeState (..), emptyState, getVdeCtlDir, modifyState_)
+import Control.Exception.Safe (SomeException, try)
+import Data.Aeson (FromJSON, ToJSON)
 import StdLib
-import System.Directory (doesDirectoryExist, removeDirectoryRecursive)
+import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
 import System.Posix (sigKILL, signalProcess)
 import System.Process
 
-startIfNotRunning :: Context -> IO ()
-startIfNotRunning ctx = do
-  modifyState_ ctx $ \state -> case state ^. #vde of
-    Nothing -> do
-      vdeState <- startVde ctx
-      pure $ emptyState & #vde ?~ vdeState
-    Just vdeState -> do
-      isRunning <- doesDirectoryExist $ "/proc/" <> show (vdeState ^. #pid)
-      if isRunning
-        then pure state
-        else do
-          T.putStrLn "WARN: vde_switch crashed, restarting"
-          vdeState <- startVde ctx
-          pure $ state & #vde ?~ vdeState
+newtype VdeState = VdeState
+  { pid :: Int64
+  }
+  deriving stock (Generic, Show, Eq)
+  deriving anyclass (ToJSON, FromJSON)
 
-startVde :: Context -> IO VdeState
-startVde ctx = do
+start :: Context -> IO VdeState
+start ctx = do
   ctlDir <- getVdeCtlDir ctx
   (stdinPipe, _) <- createPipe
   (_, _, _, handle) <-
@@ -37,14 +24,16 @@ startVde ctx = do
         { std_in = UseHandle stdinPipe -- `CreatePipe :: StdStream` doesn't work reliably
         }
   registerProcess ctx VdeSwitch handle
-  pid <- getPid handle <&> fromMaybe (error "no pid")
+  pid <- System.Process.getPid handle <&> fromMaybe (error "no pid")
   pure $ VdeState {pid = fromIntegral pid}
 
-stop :: Context -> IO ()
-stop ctx = do
-  modifyState_ ctx $ \state -> case state ^. #vde of
-    Nothing -> pure state
-    Just vdeState -> do
-      signalProcess sigKILL $ fromIntegral $ vdeState ^. #pid
-      removeDirectoryRecursive =<< getVdeCtlDir ctx
-      pure $ state & #vde .~ Nothing
+stop :: Context -> VdeState -> IO ()
+stop ctx state = do
+  _ :: Either SomeException () <- try $ signalProcess sigKILL $ fromIntegral $ state ^. #pid
+  removeDirectoryRecursive =<< getVdeCtlDir ctx
+
+getVdeCtlDir :: Context -> IO FilePath
+getVdeCtlDir ctx = do
+  let ctlDir = storageDir ctx </> "vde1.ctl"
+  createDirectoryIfMissing True ctlDir
+  pure ctlDir

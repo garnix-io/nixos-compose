@@ -22,6 +22,7 @@ import System.IO (Handle, IOMode (..), openFile)
 import System.IO qualified
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
+import Vde qualified
 import Prelude
 
 production :: NixVms
@@ -138,7 +139,7 @@ runVmImpl ctx verbosity vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
-  vdeCtlDir <- getVdeCtlDir ctx
+  vdeCtlDir <- Vde.getVdeCtlDir ctx
   let mkProc stdout stderr =
         ( System.Process.proc
             vmExecutable

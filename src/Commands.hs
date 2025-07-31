@@ -24,7 +24,6 @@ import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (getPid)
 import Utils
-import Vde qualified
 import Prelude
 
 list :: Context -> IO ()
@@ -45,13 +44,12 @@ start ctx verbosity startOptions = do
           throwIO $ ExitFailure 1
         a : r -> pure $ a :| r
     StartSome vmNames -> pure vmNames
-  Vde.startIfNotRunning ctx
   forM_ vmNames $ \vmName -> do
     ip <- getNextIp ctx
     existing <- claimVm ctx vmName $ Starting {ip}
     case existing of
-      Just existing -> T.putStrLn $ vmNameToText vmName <> ": already " <> vmStateToText existing
-      Nothing -> do
+      Left existing -> T.putStrLn $ vmNameToText vmName <> ": already " <> vmStateToText existing
+      Right () -> do
         vmKeyPath <- getVmFilePath ctx vmName "vmkey"
         exists <- doesFileExist vmKeyPath
         when exists $ do
@@ -79,9 +77,6 @@ stop ctx vmName = do
     Running {pid} -> do
       signalProcess sigKILL $ fromIntegral pid
       removeVm ctx vmName
-      running <- listRunningVms ctx
-      when (null running) $ do
-        Vde.stop ctx
 
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do
@@ -99,8 +94,6 @@ status :: Context -> [VmName] -> IO ()
 status ctx args = do
   configuredVms <- listVms (nixVms ctx) ctx
   runningVms <- State.listRunningVms ctx
-  when (null runningVms) $ do
-    Vde.stop ctx
   T.putStr $ T.unlines $ case configuredVms of
     [] -> ["no vms configured"]
     configuredVms -> do

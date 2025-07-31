@@ -6,10 +6,6 @@ module State
     modifyState,
     modifyState_,
 
-    -- * vde state
-    VdeState (..),
-    getVdeCtlDir,
-
     -- * vm state
     VmState (..),
     getPid,
@@ -46,11 +42,12 @@ import System.Directory
   )
 import System.FileLock
 import Utils (filterMapM)
+import Vde qualified
 
 -- global state
 
 data State = State
-  { vde :: Maybe VdeState,
+  { vde :: Maybe Vde.VdeState,
     vms :: Map VmName VmState,
     nextIp :: IPv4
   }
@@ -77,6 +74,7 @@ modifyState ctx action = do
             else either error id (eitherDecode' (cs contents) :: Either String State)
     cleanedUp <- cleanUpVms ctx parsed
     (next, a) <- action cleanedUp
+    next <- cleanUpVdeSwitch ctx next
     if Map.null (next ^. #vms) && isNothing (next ^. #vde)
       then do
         removeFile file
@@ -99,19 +97,14 @@ getStateFile ctx = do
   createDirectoryIfMissing True dir
   pure $ dir </> "state.json"
 
--- * vde state
-
-newtype VdeState = VdeState
-  { pid :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (ToJSON, FromJSON)
-
-getVdeCtlDir :: Context -> IO FilePath
-getVdeCtlDir ctx = do
-  let ctlDir = storageDir ctx </> "vde1.ctl"
-  createDirectoryIfMissing True ctlDir
-  pure ctlDir
+cleanUpVdeSwitch :: Context -> State -> IO State
+cleanUpVdeSwitch ctx state =
+  case (state ^. #vde, Map.keys (state ^. #vms)) of
+    (Nothing, _) -> pure state
+    (Just _vdeState, _ : _) -> pure state
+    (Just vdeState, []) -> do
+      Vde.stop ctx vdeState
+      pure $ state & #vde .~ Nothing
 
 -- * vm state
 
@@ -152,11 +145,21 @@ cleanUpVms ctx state = do
           removeVmDir ctx vmName
         pure isRunning
 
-claimVm :: Context -> VmName -> VmState -> IO (Maybe VmState)
+claimVm :: Context -> VmName -> VmState -> IO (Either VmState ())
 claimVm ctx vm new = modifyState ctx $ \state -> do
-  pure $ case Map.lookup vm (state ^. #vms) of
-    Nothing -> (state & #vms %~ Map.insert vm new, Nothing)
-    Just existing -> (state, Just existing)
+  case Map.lookup vm (state ^. #vms) of
+    Just existing -> do
+      pure (state, Left existing)
+    Nothing -> do
+      vdeState <- case state ^. #vde of
+        Just vdeState -> pure vdeState
+        Nothing -> Vde.start ctx
+      pure
+        ( state
+            & (#vms %~ Map.insert vm new)
+            & (#vde ?~ vdeState),
+          Right ()
+        )
 
 readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
