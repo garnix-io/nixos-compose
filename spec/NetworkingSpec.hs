@@ -21,7 +21,7 @@ spec = do
           case state of
             Nothing -> expectationFailure "assertVdeIsRunning: no state file"
             Just state -> do
-              exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . #pid :: Int64) </> "exe"
+              exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: Int64) </> "exe"
               takeFileName exe `shouldBe` "vde_switch"
 
     let assertVmIsRunning ctx vmName = do
@@ -41,7 +41,7 @@ spec = do
         state <- fromJust <$> readState ctx
         _ <- assertSuccess $ test ctx ["stop", "a"]
         readState ctx `shouldReturn` Nothing
-        (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . #pid), "-o", "stat", "--no-headers"]
+        (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . to fromJust . #pid), "-o", "stat", "--no-headers"]
         -- It's stopped, but still a zombie, since it's a child of the test-suite.
         stdout `shouldSatisfy` (`elem` ["Z\n", "Z+\n"])
 

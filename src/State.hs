@@ -47,7 +47,7 @@ import Utils (filterMapM)
 -- global state
 
 data State = State
-  { vde :: VdeState,
+  { vde :: Maybe VdeState,
     vms :: Map VmName VmState,
     nextIp :: IPv4
   }
@@ -57,7 +57,7 @@ data State = State
 mkState :: VdeState -> State
 mkState vdeState =
   State
-    { vde = vdeState,
+    { vde = Just vdeState,
       vms = mempty,
       nextIp = fst ipRange
     }
