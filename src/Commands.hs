@@ -4,6 +4,7 @@ module Commands
     stop,
     ssh,
     status,
+    Commands.ip,
   )
 where
 
@@ -11,8 +12,10 @@ import Context
 import Control.Concurrent (threadDelay)
 import Cradle
 import Data.List.NonEmpty (NonEmpty (..))
+import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Net.IPv4 qualified as IPv4
 import Options (StartOptions (..), Verbosity, VmName (..))
 import State
 import StdLib
@@ -57,13 +60,14 @@ start ctx verbosity startOptions = do
           runWithErrorHandling $
             Cradle.cmd "ssh-keygen"
               & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
+        ip <- getNextIp ctx
         (vmScript, port) <- logStep "Building NixOS config..." $ do
-          buildVmScript (nixVms ctx) ctx vmName
+          buildVmScript (nixVms ctx) ctx vmName ip
         logStep "Starting VM..." $ do
           ph <- runVm (nixVms ctx) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <- getPid ph <&> fromMaybe (error "no pid")
-          State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port})
+          State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port, ip})
           waitForVm ctx vmName
 
 stop :: Context -> VmName -> IO ()
@@ -103,3 +107,17 @@ status ctx args = do
         if vmName `elem` runningVms
           then vmNameToText vmName <> ": running"
           else vmNameToText vmName <> ": not running"
+
+ip :: Context -> VmName -> IO ()
+ip ctx vm = modifyState_ ctx $ \case
+  Nothing -> do
+    T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
+    throwIO $ ExitFailure 1
+  Just state -> do
+    state' <- cleanUpVms ctx state
+    case Map.lookup vm (state' ^. #vms) of
+      Nothing -> do
+        T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
+        throwIO $ ExitFailure 1
+      Just vmState -> T.putStrLn $ IPv4.encode $ vmState ^. #ip
+    pure $ Just state'

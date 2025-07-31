@@ -55,6 +55,7 @@ executable nixos-compose
     , filepath
     , generic-lens
     , interpolate
+    , ip
     , lens
     , optparse-applicative
     , port-utils
@@ -73,6 +74,7 @@ test-suite spec
   other-modules:
       CliSpec
       IntegrationSpec
+      NetworkingSpec
       SpecHook
       TestUtils
       Commands
@@ -124,6 +126,7 @@ test-suite spec
     , hspec-discover
     , hspec-golden
     , interpolate
+    , ip
     , lens
     , mockery
     , optparse-applicative

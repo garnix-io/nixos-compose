@@ -4,6 +4,7 @@ import Control.Concurrent (MVar, modifyMVar_)
 import Cradle qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
+import Net.IPv4 (IPv4)
 import Options (Verbosity, VmName)
 import StdLib
 import System.IO
@@ -32,7 +33,7 @@ registerProcess ctx typ handle = case ctx ^. #registeredProcesses of
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
-    buildVmScript :: Context -> VmName -> IO (FilePath, Port),
+    buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
     runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
     sshIntoVm :: forall o. (Cradle.Output o) => Context -> VmName -> Text -> IO o
   }
