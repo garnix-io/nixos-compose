@@ -17,7 +17,6 @@ module State
     removeVm,
     getVmFilePath,
     listRunningVms,
-    cleanUpVms,
 
     -- * IPs
     getNextIp,
@@ -70,11 +69,12 @@ modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
     contents <- T.readFile file
-    let previous =
+    let parsed =
           if contents == ""
             then emptyState
             else either error id (eitherDecode' (cs contents) :: Either String State)
-    (next, a) <- action previous
+    cleanedUp <- cleanUpVms ctx parsed
+    (next, a) <- action cleanedUp
     if Map.null (next ^. #vms) && isNothing (next ^. #vde)
       then do
         removeFile file
@@ -121,6 +121,19 @@ data VmState = VmState
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
 
+cleanUpVms :: Context -> State -> IO State
+cleanUpVms ctx state = do
+  running <- filterMapM isRunning (state ^. #vms)
+  pure $ state & #vms .~ running
+  where
+    isRunning :: VmName -> VmState -> IO Bool
+    isRunning vmName vmState = do
+      isRunning <- doesDirectoryExist $ "/proc/" <> show (vmState ^. #pid :: Int)
+      unless isRunning $ do
+        T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
+        removeVmDir ctx vmName
+      pure isRunning
+
 readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
@@ -139,6 +152,11 @@ removeVm ctx vmName = do
   modifyState_ ctx $ \state -> do
     pure $ state & #vms %~ Map.delete vmName
 
+listRunningVms :: Context -> IO [VmName]
+listRunningVms ctx = do
+  state <- readState ctx
+  pure $ sort $ Map.keys $ state ^. #vms
+
 removeVmDir :: Context -> VmName -> IO ()
 removeVmDir ctx vmName = do
   removeDirectoryRecursive $ storageDir ctx </> "vms" </> cs (vmNameToText vmName)
@@ -151,24 +169,6 @@ getVmFilePath ctx vmName path = do
   let dir = storageDir ctx </> "vms" </> cs (vmNameToText vmName)
   createDirectoryIfMissing True dir
   pure $ dir </> path
-
-listRunningVms :: Context -> IO [VmName]
-listRunningVms ctx = modifyState ctx $ \state -> do
-  state' <- cleanUpVms ctx state
-  pure (state', Map.keys $ state' ^. #vms)
-
-cleanUpVms :: Context -> State -> IO State
-cleanUpVms ctx state = do
-  running <- filterMapM isRunning (state ^. #vms)
-  pure $ state & #vms .~ running
-  where
-    isRunning :: VmName -> VmState -> IO Bool
-    isRunning vmName vmState = do
-      isRunning <- doesDirectoryExist $ "/proc/" <> show (vmState ^. #pid :: Int)
-      unless isRunning $ do
-        T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
-        removeVmDir ctx vmName
-      pure isRunning
 
 -- * IPs
 

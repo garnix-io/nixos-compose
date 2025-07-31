@@ -94,7 +94,7 @@ ssh ctx vmName command = do
 status :: Context -> [VmName] -> IO ()
 status ctx args = do
   configuredVms <- listVms (nixVms ctx) ctx
-  runningVms <- sort <$> State.listRunningVms ctx
+  runningVms <- State.listRunningVms ctx
   when (null runningVms) $ do
     Vde.stop ctx
   T.putStr $ T.unlines $ case configuredVms of
@@ -110,10 +110,9 @@ status ctx args = do
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do
-  state' <- cleanUpVms ctx state
-  case Map.lookup vm (state' ^. #vms) of
+  case Map.lookup vm (state ^. #vms) of
     Nothing -> do
       T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
       throwIO $ ExitFailure 1
     Just vmState -> T.putStrLn $ IPv4.encode $ vmState ^. #ip
-  pure state'
+  pure state
