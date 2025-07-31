@@ -64,16 +64,7 @@ emptyState =
       nextIp = fst ipRange
     }
 
-readState :: Context -> IO State
-readState ctx = do
-  file <- getStateFile ctx
-  withFileLock file Shared $ \_lock -> do
-    contents <- T.readFile file
-    pure $
-      if contents == ""
-        then emptyState
-        else either error id (eitherDecode' (cs contents) :: Either String State)
-
+-- every other state interaction is implemented in terms of this `modifyState` function
 modifyState :: Context -> (State -> IO (State, a)) -> IO a
 modifyState ctx action = do
   file <- getStateFile ctx
@@ -95,6 +86,10 @@ modifyState_ :: Context -> (State -> IO State) -> IO ()
 modifyState_ ctx action = modifyState ctx $ \state -> do
   new <- action state
   pure (new, ())
+
+readState :: Context -> IO State
+readState ctx = modifyState ctx $ \state -> do
+  pure (state, state)
 
 getStateFile :: Context -> IO FilePath
 getStateFile ctx = do
