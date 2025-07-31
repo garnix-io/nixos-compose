@@ -98,7 +98,7 @@ nixStandardFlags =
   ]
 
 getModuleExtensions :: Context -> VmName -> Port -> IPv4 -> IO Text
-getModuleExtensions ctx vmName port (IPv4.encode -> ip) = do
+getModuleExtensions ctx vmName port ip = do
   publicKey <- readFile =<< getVmFilePath ctx vmName "vmkey.pub"
   pure $
     cs
@@ -118,7 +118,7 @@ getModuleExtensions ctx vmName port (IPv4.encode -> ip) = do
             forwardPorts = [{ from = "host"; host.port = #{port}; guest.port = 22; }];
           };
           networking.interfaces.eth1.ipv4.addresses = [{
-            address = "#{ip}";
+            address = "#{IPv4.encode ip :: Text}";
             prefixLength = 24;
           }];
         }
