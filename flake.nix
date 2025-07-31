@@ -22,11 +22,11 @@
           lib.fileset.toSource {
             root = ./.;
             fileset = lib.fileset.unions [
-              ./vmcli.cabal
+              ./nixos-compose.cabal
               ./src
             ];
           };
-        haskellPackage = pkgs.haskell.lib.overrideCabal (haskellPackages.callCabal2nix "vmcli" prodSrc { }) (old: {
+        haskellPackage = pkgs.haskell.lib.overrideCabal (haskellPackages.callCabal2nix "nixos-compose" prodSrc { }) (old: {
           buildDepends = (old.buildDepends or [ ]) ++ [ pkgs.openssh pkgs.nix ];
           doCheck = false;
           configureFlags = [
@@ -46,7 +46,7 @@
         devSrc = lib.fileset.toSource {
           root = ./.;
           fileset = lib.fileset.unions [
-            ./vmcli.cabal
+            ./nixos-compose.cabal
             ./src
             ./spec
             ./.golden
@@ -59,7 +59,7 @@
             let
               mkShellCompletion = shell: outPath: ''
                 mkdir -p $out/${builtins.dirOf outPath}
-                ${haskellPackage}/bin/vmcli --${shell}-completion-script ${haskellPackage}/bin/vmcli > $out/${outPath}
+                ${haskellPackage}/bin/nixos-compose --${shell}-completion-script ${haskellPackage}/bin/nixos-compose > $out/${outPath}
               '';
             in
             pkgs.runCommand haskellPackage.name
@@ -69,12 +69,12 @@
               ''
                 mkdir -p $out/bin/
                 cp -r ${haskellPackage}/bin/. $out/bin/
-                wrapProgram "$out/bin/vmcli" \
+                wrapProgram "$out/bin/nixos-compose" \
                   --prefix PATH : ${pkgs.lib.makeBinPath runtimeDeps}
 
-                ${mkShellCompletion "bash" "share/bash-completion/completions/vmcli.bash"}
-                ${mkShellCompletion "zsh" "share/zsh/vendor-completions/_vmcli"}
-                ${mkShellCompletion "fish" "share/fish/vendor_completions.d/vmcli.fish"}
+                ${mkShellCompletion "bash" "share/bash-completion/completions/nixos-compose.bash"}
+                ${mkShellCompletion "zsh" "share/zsh/vendor-completions/_nixos-compose"}
+                ${mkShellCompletion "fish" "share/fish/vendor_completions.d/nixos-compose.fish"}
               '';
         };
         checks = {

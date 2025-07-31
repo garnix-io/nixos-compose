@@ -4,11 +4,11 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 
-name:           vmcli
+name:           nixos-compose
 version:        0.0.0
 build-type:     Simple
 
-executable vmcli
+executable nixos-compose
   main-is: Main.hs
   other-modules:
       Commands
@@ -21,7 +21,7 @@ executable vmcli
       StdLib
       Utils
       Vde
-      Paths_vmcli
+      Paths_nixos_compose
   hs-source-dirs:
       src
   default-extensions:
@@ -86,7 +86,7 @@ test-suite spec
       StdLib
       Utils
       Vde
-      Paths_vmcli
+      Paths_nixos_compose
   hs-source-dirs:
       spec
       src

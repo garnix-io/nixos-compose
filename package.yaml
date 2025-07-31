@@ -1,6 +1,6 @@
-name: vmcli
+name: nixos-compose
 executables:
-  vmcli:
+  nixos-compose:
     source-dirs: src
     main: Main.hs
 
