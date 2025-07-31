@@ -6,7 +6,7 @@ import Control.Monad (replicateM)
 import Cradle
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
-import State (VdeState (..), VmState (..), getNextIp, mkState, modifyState_, readState, readVmState, writeVmState)
+import State (VmState (..), emptyState, getNextIp, modifyState_, readState, readVmState, writeVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
@@ -124,7 +124,7 @@ spec = do
     it "wraps around and doesn't assign ips that are in use" $ do
       withMockContext [] $ \ctx -> do
         modifyState_ ctx $ \_ -> do
-          pure $ Just $ mkState (VdeState {pid = 0})
+          pure $ Just emptyState
         ips <- replicateM 252 $ do
           getNextIp ctx
         ips `shouldBe` [IPv4.fromOctets 10 0 0 2 .. IPv4.fromOctets 10 0 0 253]

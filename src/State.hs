@@ -1,7 +1,7 @@
 module State
   ( -- * global state
     State (..),
-    mkState,
+    emptyState,
     readState,
     modifyState,
     modifyState_,
@@ -54,10 +54,10 @@ data State = State
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
 
-mkState :: VdeState -> State
-mkState vdeState =
+emptyState :: State
+emptyState =
   State
-    { vde = Just vdeState,
+    { vde = Nothing,
       vms = mempty,
       nextIp = fst ipRange
     }
