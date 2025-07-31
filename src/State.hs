@@ -192,5 +192,5 @@ getNextIp ctx = modifyState ctx $ \case
           | candidate > snd ipRange = findIp (fst ipRange)
           | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
           | otherwise = candidate
-    let ip = findIp $ succ $ state ^. #nextIp
-    pure (Just $ state & #nextIp .~ ip, state ^. #nextIp)
+    let ip = findIp $ state ^. #nextIp
+    pure (Just $ state & #nextIp .~ succ ip, ip)
