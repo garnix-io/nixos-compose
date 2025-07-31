@@ -62,15 +62,15 @@ emptyState =
       nextIp = fst ipRange
     }
 
-readState :: Context -> IO (Maybe State)
+readState :: Context -> IO State
 readState ctx = do
   file <- getStateFile ctx
   withFileLock file Shared $ \_lock -> do
     contents <- T.readFile file
     pure $
       if contents == ""
-        then Nothing
-        else Just (either error id (eitherDecode' (cs contents) :: Either String State))
+        then emptyState
+        else either error id (eitherDecode' (cs contents) :: Either String State)
 
 modifyState :: Context -> (Maybe State -> IO (Maybe State, a)) -> IO a
 modifyState ctx action = do
@@ -125,12 +125,9 @@ data VmState = VmState
 readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
-  case state of
-    Nothing -> error "no state file found"
-    Just state -> do
-      case Map.lookup vmName (state ^. #vms) of
-        Nothing -> error "vm not found"
-        Just vmState -> pure vmState
+  case Map.lookup vmName (state ^. #vms) of
+    Nothing -> error "vm not found"
+    Just vmState -> pure vmState
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
 writeVmState ctx vmName vmState = do

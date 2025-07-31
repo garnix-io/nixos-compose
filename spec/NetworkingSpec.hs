@@ -18,11 +18,8 @@ spec = do
   describe "`vde_switch`" $ do
     let assertVdeIsRunning ctx = do
           state <- readState ctx
-          case state of
-            Nothing -> expectationFailure "assertVdeIsRunning: no state file"
-            Just state -> do
-              exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: Int64) </> "exe"
-              takeFileName exe `shouldBe` "vde_switch"
+          exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: Int64) </> "exe"
+          takeFileName exe `shouldBe` "vde_switch"
 
     let assertVmIsRunning ctx vmName = do
           state <- readVmState ctx vmName
@@ -38,9 +35,9 @@ spec = do
     it "stops the switch when a vm is stopped" $ do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
-        state <- fromJust <$> readState ctx
+        state <- readState ctx
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        readState ctx `shouldReturn` Nothing
+        (^. #vde) <$> readState ctx `shouldReturn` Nothing
         (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . to fromJust . #pid), "-o", "stat", "--no-headers"]
         -- It's stopped, but still a zombie, since it's a child of the test-suite.
         stdout `shouldSatisfy` (`elem` ["Z\n", "Z+\n"])
@@ -66,7 +63,7 @@ spec = do
         assertVdeIsRunning ctx
         _ <- assertSuccess $ test ctx ["stop", "b"]
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        readState ctx `shouldReturn` Nothing
+        (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
     it "restarts the switch after e.g. a reboot" $ do
       withMockContext ["a", "b"] $ \ctx -> do
