@@ -6,7 +6,7 @@ import Control.Monad (replicateM)
 import Cradle
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
-import State (getNextIp, readState, readVmState)
+import State (getNextIp, getPid, readState, readVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
@@ -23,7 +23,7 @@ spec = do
 
     let assertVmIsRunning ctx vmName = do
           state <- readVmState ctx vmName
-          let pid :: Int = state ^. #pid
+          let pid :: Int = fromJust $ getPid state
           comm <- readFile $ "/proc" </> show (pid :: Int) </> "comm"
           comm `shouldBe` "sleep\n"
 

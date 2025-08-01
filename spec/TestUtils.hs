@@ -3,14 +3,15 @@
 module TestUtils where
 
 import Context
-import Control.Concurrent (modifyMVar_, newMVar, readMVar)
-import Control.Exception (finally)
+import Control.Concurrent (modifyMVar_, newMVar, readMVar, threadDelay)
+import Control.Exception.Safe (SomeException, finally, try)
 import Cradle qualified
 import Data.Map qualified as Map
 import Data.Maybe (isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
+import GHC.Clock (getMonotonicTime)
 import GHC.Exts (IsString (..))
 import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
@@ -130,3 +131,20 @@ withMockContext vmNames action = do
                     & Cradle.setWorkingDir tempDir
           }
   withContext mockNixVms action
+
+waitFor :: IO a -> IO a
+waitFor action = do
+  startTime <- getMonotonicTime
+  inner startTime
+  where
+    inner startTime = do
+      result :: Either SomeException a <- try action
+      case result of
+        Left e -> do
+          now <- getMonotonicTime
+          if now - startTime < 2
+            then do
+              threadDelay 50_000
+              inner startTime
+            else throwIO e
+        Right a -> pure a

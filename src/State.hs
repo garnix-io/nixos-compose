@@ -12,6 +12,9 @@ module State
 
     -- * vm state
     VmState (..),
+    getPid,
+    vmStateToText,
+    claimVm,
     readVmState,
     writeVmState,
     removeVm,
@@ -112,13 +115,27 @@ getVdeCtlDir ctx = do
 
 -- * vm state
 
-data VmState = VmState
-  { port :: Int,
-    pid :: Int,
-    ip :: IPv4
-  }
+data VmState
+  = Starting
+      { ip :: IPv4
+      }
+  | Running
+      { port :: Int,
+        pid :: Int,
+        ip :: IPv4
+      }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
+
+getPid :: VmState -> Maybe Int
+getPid = \case
+  Starting {} -> Nothing
+  Running {pid} -> Just pid
+
+vmStateToText :: VmState -> Text
+vmStateToText = \case
+  Starting {} -> "starting"
+  Running {} -> "running"
 
 cleanUpVms :: Context -> State -> IO State
 cleanUpVms ctx state = do
@@ -126,12 +143,20 @@ cleanUpVms ctx state = do
   pure $ state & #vms .~ running
   where
     isRunning :: VmName -> VmState -> IO Bool
-    isRunning vmName vmState = do
-      isRunning <- doesDirectoryExist $ "/proc/" <> show (vmState ^. #pid :: Int)
-      unless isRunning $ do
-        T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
-        removeVmDir ctx vmName
-      pure isRunning
+    isRunning vmName = \case
+      Starting {} -> pure True
+      Running {pid} -> do
+        isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: Int)
+        unless isRunning $ do
+          T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
+          removeVmDir ctx vmName
+        pure isRunning
+
+claimVm :: Context -> VmName -> VmState -> IO (Maybe VmState)
+claimVm ctx vm new = modifyState ctx $ \state -> do
+  pure $ case Map.lookup vm (state ^. #vms) of
+    Nothing -> (state & #vms %~ Map.insert vm new, Nothing)
+    Just existing -> (state, Just existing)
 
 readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
@@ -151,10 +176,10 @@ removeVm ctx vmName = do
   modifyState_ ctx $ \state -> do
     pure $ state & #vms %~ Map.delete vmName
 
-listRunningVms :: Context -> IO [VmName]
+listRunningVms :: Context -> IO (Map VmName VmState)
 listRunningVms ctx = do
   state <- readState ctx
-  pure $ sort $ Map.keys $ state ^. #vms
+  pure $ state ^. #vms
 
 removeVmDir :: Context -> VmName -> IO ()
 removeVmDir ctx vmName = do
@@ -178,7 +203,8 @@ getNextIp :: Context -> IO IPv4
 getNextIp ctx = modifyState ctx $ \state -> do
   let findIp candidate
         | candidate > snd ipRange = findIp (fst ipRange)
-        | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
+        | candidate `elem` map (^. #ip) (Map.elems (state ^. #vms)) =
+            findIp (succ candidate)
         | otherwise = candidate
   let ip = findIp $ state ^. #nextIp
   pure (state & #nextIp .~ succ ip, ip)
