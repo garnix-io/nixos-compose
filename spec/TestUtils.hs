@@ -119,7 +119,7 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 pure ph,
-            sshIntoVm = \ctx vmName command -> do
+            sshIntoVm = SshIntoVm $ \ctx vmName command -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
               _state <- State.readVmState ctx vmName

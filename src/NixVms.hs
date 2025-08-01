@@ -30,7 +30,7 @@ production =
     { listVms = listVmsImpl,
       buildVmScript = buildVmScriptImpl,
       runVm = runVmImpl,
-      sshIntoVm = sshIntoVmImpl
+      sshIntoVm = SshIntoVm sshIntoVmImpl
     }
 
 listVmsImpl :: Context -> IO [VmName]

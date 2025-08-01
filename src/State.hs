@@ -42,7 +42,6 @@ import System.Directory
     removeFile,
   )
 import System.FileLock
-import System.IO qualified
 import Utils (filterMapM)
 
 -- global state

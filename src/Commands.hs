@@ -64,7 +64,7 @@ start ctx verbosity startOptions = do
         (vmScript, port) <- logStep "Building NixOS config..." $ do
           buildVmScript (nixVms ctx) ctx vmName ip
         logStep "Starting VM..." $ do
-          ph <- runVm (nixVms ctx) ctx verbosity vmName vmScript
+          ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <- getPid ph <&> fromMaybe (error "no pid")
           State.writeVmState ctx vmName (VmState {pid = fromIntegral pid, port, ip})
@@ -81,14 +81,14 @@ stop ctx vmName = do
 
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do
-  (StdoutRaw _, StderrRaw _, exitCode) <- sshIntoVm (nixVms ctx) ctx vmName "true"
+  (StdoutRaw _, StderrRaw _, exitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName "true"
   when (exitCode /= Cradle.ExitSuccess) $ do
     threadDelay 1_000_000
     waitForVm ctx vmName
 
 ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
-  exitCode :: ExitCode <- sshIntoVm (nixVms ctx) ctx vmName command
+  exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName command
   throwIO exitCode
 
 status :: Context -> [VmName] -> IO ()
