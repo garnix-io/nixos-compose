@@ -49,3 +49,16 @@ filterMapM pred map = do
   pure $ Map.fromList new
 
 type Port = Int
+
+isValidHostname :: Text -> Bool
+isValidHostname t =
+  t /= ""
+    && T.all (`elem` allValid) t
+    && (`elem` alpha) (T.head t)
+    && (`elem` alphaNumeric) (T.last t)
+    && not ("--" `T.isInfixOf` t)
+  where
+    alpha = ['a' .. 'z'] <> ['A' .. 'Z']
+    numeric = ['0' .. '9']
+    alphaNumeric = alpha <> numeric
+    allValid = alphaNumeric <> ['.', '-']

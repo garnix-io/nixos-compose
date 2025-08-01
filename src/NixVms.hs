@@ -31,7 +31,8 @@ production =
     { listVms = listVmsImpl,
       buildVmScript = buildVmScriptImpl,
       runVm = runVmImpl,
-      sshIntoVm = SshIntoVm sshIntoVmImpl
+      sshIntoVm = SshIntoVm sshIntoVmImpl,
+      updateVmHostsEntry = updateVmHostsEntryImpl
     }
 
 listVmsImpl :: Context -> IO [VmName]
@@ -67,7 +68,7 @@ buildVmScriptImpl ctx vmName ip = do
                    ".#nixosConfigurations." <> toNixString (vmNameToText vmName),
                    "--json",
                    "--apply",
-                   "nixConfig: (nixConfig.extendModules { modules = [" <> moduleExtensions <> "]; }).config.system.build.vm.drvPath"
+                   "nixConfig: (nixConfig.extendModules { modules = [(" <> moduleExtensions <> ")]; }).config.system.build.vm.drvPath"
                  ]
           )
   let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
@@ -104,12 +105,23 @@ getModuleExtensions ctx vmName port ip = do
   pure $
     cs
       [i|
-        {
+        { pkgs, ... }: {
           services.openssh.enable = true;
           users.users.vmuser = {
             isNormalUser = true;
             group = "wheel";
             openssh.authorizedKeys.keys = [ #{toNixString $ cs publicKey} ];
+            packages = [
+              (pkgs.writeShellApplication {
+                name = "update-vm-hosts-entry";
+                text = ''
+                  HOSTNAME="$1"
+                  IP="$2"
+                  sudo sed -i "/ $HOSTNAME\$/d" /etc/hosts
+                  sudo tee --append /etc/hosts <<< "$IP $HOSTNAME" > /dev/null
+                '';
+              })
+            ];
           };
           security.sudo.extraRules = [
             { users = [ "vmuser" ]; commands = [ { command = "ALL"; options = [ "NOPASSWD" ]; } ]; }
@@ -202,6 +214,12 @@ sshIntoVmImpl ctx vmName command = do
               "ConnectTimeout=2",
               "-p",
               cs (show port),
+              "-q",
               "localhost",
               command
             ]
+
+updateVmHostsEntryImpl :: Context -> VmName -> Text -> IPv4 -> IO ()
+updateVmHostsEntryImpl ctx vmName hostname ip = do
+  when ('\'' `T.elem` hostname) $ error "updateVmHostsEntry: hostname must not contain \"'\""
+  sshIntoVmImpl ctx vmName $ "update-vm-hosts-entry '" <> hostname <> "' " <> IPv4.encode ip

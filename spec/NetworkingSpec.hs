@@ -4,8 +4,10 @@ import Context
 import Control.Concurrent (readMVar)
 import Control.Monad (replicateM)
 import Cradle
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
+import Options (VmName (..))
 import State (getNextIp, getPid, readState, readVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
@@ -127,3 +129,34 @@ spec = do
         ips <- replicateM 3 $ do
           IPv4.encode <$> getNextIp ctx
         ips `shouldBe` ["10.0.0.254", "10.0.0.3", "10.0.0.4"]
+
+  describe "hostnames" $ do
+    it "registers hostname mappings amongst all VMs" $ do
+      withMockContext ["a", "b", "c"] $ \ctx -> do
+        let allPairs :: [a] -> [(a, a)]
+            allPairs list = (,) <$> list <*> list
+        _ <- assertSuccess $ test ctx ["start", "--all"]
+        testState <- readMVar (fromJust $ ctx ^. #testState)
+        testState ^. #testHostMappings
+          `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 2),
+                         ("b", IPv4.ipv4 10 0 0 3),
+                         ("c", IPv4.ipv4 10 0 0 4)
+                       ]
+                         & allPairs
+                         & map (\((fromName, _), (toName, toIP)) -> Map.singleton (VmName fromName, toName) toIP)
+                         & mconcat
+                     )
+
+    it "only sets VM names that are valid hostnames" $ do
+      withMockContext
+        [ "valid-hostname",
+          "invalid?hostname"
+        ]
+        $ \ctx -> do
+          _ <- assertSuccess $ test ctx ["start", "--all"]
+          testState <- readMVar (fromJust $ ctx ^. #testState)
+          testState ^. #testHostMappings
+            `shouldBe` Map.fromList
+              [ ((VmName "invalid?hostname", "valid-hostname"), IPv4.ipv4 10 0 0 2),
+                ((VmName "valid-hostname", "valid-hostname"), IPv4.ipv4 10 0 0 2)
+              ]

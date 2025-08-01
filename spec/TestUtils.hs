@@ -63,7 +63,7 @@ withContext nixVms action = do
   withSystemTempFile "test-stdin" $ \_stdinFile stdinHandle -> do
     withSystemTempDirectory "test-working-dir" $ \workingDir -> do
       withSystemTempDirectory "test-storage-dir" $ \storageDir -> do
-        testState <- newMVar $ TestState mempty
+        testState <- newMVar $ TestState mempty mempty
         let ctx =
               Context
                 { testState = Just testState,
@@ -135,7 +135,9 @@ withMockContext vmNames action = do
                 Cradle.run $
                   Cradle.cmd "bash"
                     & Cradle.addArgs ["-c", command]
-                    & Cradle.setWorkingDir tempDir
+                    & Cradle.setWorkingDir tempDir,
+            updateVmHostsEntry = \ctx vmName hostName ip -> do
+              updateTestState ctx $ pure . (#testHostMappings %~ Map.insert (vmName, hostName) ip)
           }
   withContext mockNixVms action
 

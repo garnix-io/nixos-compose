@@ -12,7 +12,8 @@ import System.Process
 import Utils (Port)
 
 data TestState = TestState
-  { registeredProcesses :: Map ProcessType ProcessHandle
+  { registeredProcesses :: Map ProcessType ProcessHandle,
+    testHostMappings :: Map (VmName, Text) IPv4
   }
   deriving stock (Generic)
 
@@ -43,7 +44,8 @@ data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
     buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
     runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
-    sshIntoVm :: SshIntoVm
+    sshIntoVm :: SshIntoVm,
+    updateVmHostsEntry :: Context -> VmName -> Text -> IPv4 -> IO ()
   }
   deriving stock (Generic)
 
