@@ -13,7 +13,7 @@ import Utils (Port)
 
 data TestState = TestState
   { registeredProcesses :: Map ProcessType ProcessHandle,
-    testHostMappings :: Map (VmName, Text) IPv4
+    vmHostEntries :: Map (VmName, Text) IPv4
   }
   deriving stock (Generic)
 

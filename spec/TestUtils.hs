@@ -7,7 +7,7 @@ import Control.Concurrent (newMVar, readMVar, threadDelay)
 import Control.Exception.Safe (SomeException, finally, try)
 import Cradle qualified
 import Data.Map qualified as Map
-import Data.Maybe (isJust)
+import Data.Maybe (fromJust, isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -74,13 +74,13 @@ withContext nixVms action = do
                 }
         action ctx `finally` endAllRegisteredProcesses ctx
 
+readTestState :: Context -> IO TestState
+readTestState ctx = readMVar (fromJust $ ctx ^. #testState)
+
 endAllRegisteredProcesses :: Context -> IO ()
 endAllRegisteredProcesses ctx = do
-  case ctx ^. #testState of
-    Nothing -> pure ()
-    Just testStateMVar -> do
-      testState <- readMVar testStateMVar
-      mapM_ endProcess (testState ^. #registeredProcesses)
+  testState <- readTestState ctx
+  mapM_ endProcess (testState ^. #registeredProcesses)
 
 endProcess :: ProcessHandle -> IO ()
 endProcess handle = do
@@ -137,7 +137,7 @@ withMockContext vmNames action = do
                     & Cradle.addArgs ["-c", command]
                     & Cradle.setWorkingDir tempDir,
             updateVmHostsEntry = \ctx vmName hostName ip -> do
-              updateTestState ctx $ pure . (#testHostMappings %~ Map.insert (vmName, hostName) ip)
+              updateTestState ctx $ pure . (#vmHostEntries %~ Map.insert (vmName, hostName) ip)
           }
   withContext mockNixVms action
 
@@ -157,3 +157,6 @@ waitFor action = do
               inner startTime
             else throwIO e
         Right a -> pure a
+
+(~>) :: k -> v -> Map.Map k v
+(~>) = Map.singleton

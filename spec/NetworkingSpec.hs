@@ -1,10 +1,8 @@
 module NetworkingSpec where
 
 import Context
-import Control.Concurrent (readMVar)
 import Control.Monad (replicateM)
 import Cradle
-import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
 import Options (VmName (..))
@@ -136,14 +134,14 @@ spec = do
         let allPairs :: [a] -> [(a, a)]
             allPairs list = (,) <$> list <*> list
         _ <- assertSuccess $ test ctx ["start", "--all"]
-        testState <- readMVar (fromJust $ ctx ^. #testState)
-        testState ^. #testHostMappings
+        testState <- readTestState ctx
+        testState ^. #vmHostEntries
           `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 2),
                          ("b", IPv4.ipv4 10 0 0 3),
                          ("c", IPv4.ipv4 10 0 0 4)
                        ]
                          & allPairs
-                         & map (\((fromName, _), (toName, toIP)) -> Map.singleton (VmName fromName, toName) toIP)
+                         & map (\((fromName, _), (toName, toIP)) -> (VmName fromName, toName) ~> toIP)
                          & mconcat
                      )
 
@@ -154,9 +152,8 @@ spec = do
         ]
         $ \ctx -> do
           _ <- assertSuccess $ test ctx ["start", "--all"]
-          testState <- readMVar (fromJust $ ctx ^. #testState)
-          testState ^. #testHostMappings
-            `shouldBe` Map.fromList
-              [ ((VmName "invalid?hostname", "valid-hostname"), IPv4.ipv4 10 0 0 2),
-                ((VmName "valid-hostname", "valid-hostname"), IPv4.ipv4 10 0 0 2)
-              ]
+          testState <- readTestState ctx
+          testState ^. #vmHostEntries
+            `shouldBe` ( (VmName "invalid?hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+                           <> (VmName "valid-hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+                       )

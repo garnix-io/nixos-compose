@@ -10,7 +10,7 @@ spec = do
     let validHostnames =
           [ "valid",
             "WITH-CAPS",
-            "ending-wtih-digits-123",
+            "ending-with-digits-123",
             "with-123-digits",
             "with-hyphen",
             "with.dot"
@@ -25,6 +25,7 @@ spec = do
             "ending-with-hyphen-",
             "with spaces",
             "with--double-hyphen",
+            "with'symbols",
             "with?symbols",
             "with_underscore"
           ]
