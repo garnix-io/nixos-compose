@@ -64,7 +64,7 @@ spec = do
         stopProcess ctx (Vm "a")
         result <- assertSuccess $ test ctx ["status", "a"]
         result ^. #stdout `shouldBe` "WARN: cannot find process for vm: a\na: not running\n"
-        listDirectory (ctx ^. #storageDir) `shouldReturn` []
+        listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
   describe "list" $ do
     it "lists all configured vms" $ do

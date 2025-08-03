@@ -27,7 +27,6 @@ import Data.Aeson
 import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Data.Maybe (isNothing)
 import Data.Text.IO qualified as T
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
@@ -38,7 +37,6 @@ import System.Directory
     doesDirectoryExist,
     listDirectory,
     removeDirectoryRecursive,
-    removeFile,
   )
 import System.FileLock
 import Utils (filterMapM)
@@ -75,11 +73,7 @@ modifyState ctx action = do
     cleanedUp <- cleanUpVms ctx parsed
     (next, a) <- action cleanedUp
     next <- cleanUpVdeSwitch ctx next
-    if Map.null (next ^. #vms) && isNothing (next ^. #vde)
-      then do
-        removeFile file
-      else do
-        Data.ByteString.Lazy.writeFile file (encode (next :: State))
+    Data.ByteString.Lazy.writeFile file (encode (next :: State))
     pure a
 
 modifyState_ :: Context -> (State -> IO State) -> IO ()

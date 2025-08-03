@@ -46,7 +46,7 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        listDirectory (ctx ^. #storageDir) `shouldReturn` []
+        listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
     it "keeps the switch running for multiple vms" $ do
       withMockContext ["a", "b"] $ \ctx -> do
