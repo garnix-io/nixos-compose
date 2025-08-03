@@ -3,7 +3,7 @@ module Options
     Options (..),
     Verbosity (..),
     Command (..),
-    StartOptions (..),
+    UpOptions (..),
     VmName (..),
   )
 where
@@ -30,7 +30,7 @@ instance Parseable Options where
 
 data Command
   = List
-  | Start {verbosity :: Verbosity, options :: StartOptions}
+  | Up {verbosity :: Verbosity, options :: UpOptions}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
   | Stop {vmName :: VmName}
@@ -47,10 +47,10 @@ instance Parseable Command where
               (fullDesc <> progDesc "List all configured vms")
           )
           <> command
-            "start"
+            "up"
             ( info
-                (Start <$> parser <*> parser)
-                (fullDesc <> progDesc "Start a development vm")
+                (Up <$> parser <*> parser)
+                (fullDesc <> progDesc "Start development vms")
             )
           <> command
             "ssh"
@@ -93,15 +93,15 @@ instance Parseable Verbosity where
           <> help "increase verbosity"
       )
 
-data StartOptions
-  = StartAll
-  | StartSome (NonEmpty VmName)
+data UpOptions
+  = UpAll
+  | UpSome (NonEmpty VmName)
   deriving stock (Show, Generic)
 
-instance Parseable StartOptions where
+instance Parseable UpOptions where
   parser =
-    flag' StartAll (long "all")
-      <|> (StartSome . NonEmpty.fromList <$> some parser)
+    flag' UpAll (long "all")
+      <|> (UpSome . NonEmpty.fromList <$> some parser)
 
 newtype VmName = VmName {vmNameToText :: Text}
   deriving stock (Eq, Show, Ord)

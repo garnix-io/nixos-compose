@@ -4,7 +4,7 @@ Usage: nixos-compose COMMAND
 
 Available commands:
   list                     List all configured vms
-  start                    Start a development vm
+  up                       Start development vms
   ssh                      `ssh` into a running vm
   status                   Show the status of running vms
   stop                     Stop a running vm

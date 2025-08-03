@@ -1,6 +1,6 @@
 module Commands
   ( list,
-    start,
+    up,
     stop,
     ssh,
     status,
@@ -16,7 +16,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Net.IPv4 qualified as IPv4
-import Options (StartOptions (..), Verbosity, VmName (..))
+import Options (UpOptions (..), Verbosity, VmName (..))
 import State
 import StdLib
 import System.Directory (doesFileExist)
@@ -33,17 +33,17 @@ list ctx = do
     [] -> "no vms configured"
     vms -> "configured vms: " <> T.intercalate ", " (map vmNameToText vms)
 
-start :: Context -> Verbosity -> StartOptions -> IO ()
-start ctx verbosity startOptions = do
-  vmNames <- case startOptions of
-    StartAll -> do
+up :: Context -> Verbosity -> UpOptions -> IO ()
+up ctx verbosity upOptions = do
+  vmNames <- case upOptions of
+    UpAll -> do
       vmNames <- listVms (nixVms ctx) ctx
       case vmNames of
         [] -> do
           T.hPutStrLn stderr "No vms are defined. Nothing to do."
           throwIO $ ExitFailure 1
         a : r -> pure $ a :| r
-    StartSome vmNames -> pure vmNames
+    UpSome vmNames -> pure vmNames
   forM_ vmNames $ \vmName -> do
     ip <- getNextIp ctx
     existing <- claimVm ctx vmName $ Starting {ip}

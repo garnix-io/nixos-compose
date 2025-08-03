@@ -25,7 +25,7 @@ run ctx args =
     (Options opts) <- handleParseResult $ execParserPure (prefs showHelpOnError) parserInfo (cs <$> args)
     case opts of
       List -> list ctx
-      Start verbosity vmNames -> start ctx verbosity vmNames
+      Up verbosity vmNames -> up ctx verbosity vmNames
       Stop vmName -> stop ctx vmName
       Ssh vmName command -> ssh ctx vmName (Data.Text.unwords command)
       Status vmNames -> status ctx vmNames
