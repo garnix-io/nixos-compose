@@ -11,8 +11,13 @@ import System.IO
 import System.Process
 import Utils (Port)
 
+data TestState = TestState
+  { registeredProcesses :: Map ProcessType ProcessHandle
+  }
+  deriving stock (Generic)
+
 data Context = Context
-  { registeredProcesses :: Maybe (MVar (Map ProcessType ProcessHandle)),
+  { testState :: Maybe (MVar TestState),
     stdin :: Handle,
     workingDir :: FilePath,
     storageDir :: FilePath,
@@ -25,11 +30,14 @@ data ProcessType
   | Vm VmName
   deriving stock (Show, Eq, Ord)
 
-registerProcess :: Context -> ProcessType -> ProcessHandle -> IO ()
-registerProcess ctx typ handle = case ctx ^. #registeredProcesses of
+updateTestState :: Context -> (TestState -> IO TestState) -> IO ()
+updateTestState ctx update = case ctx ^. #testState of
   Nothing -> pure ()
-  Just processes -> modifyMVar_ processes $ \map -> do
-    pure (Map.insert typ handle map)
+  Just testState -> modifyMVar_ testState update
+
+registerProcess :: Context -> ProcessType -> ProcessHandle -> IO ()
+registerProcess ctx typ handle =
+  updateTestState ctx $ pure . (#registeredProcesses %~ Map.insert typ handle)
 
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],

@@ -68,7 +68,7 @@ spec = do
     it "restarts the switch after e.g. a reboot" $ do
       withMockContext ["a", "b"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
-        readMVar (fromJust (ctx ^. #registeredProcesses)) >>= mapM_ endProcess
+        endAllRegisteredProcesses ctx
         _ <- assertSuccess $ test ctx ["start", "a"]
         assertVdeIsRunning ctx
         assertVmIsRunning ctx "a"

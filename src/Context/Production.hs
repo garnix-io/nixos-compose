@@ -12,7 +12,7 @@ mkContext = do
   storageDir <- XDG.getUserDataDir "nixos-compose"
   pure $
     Context
-      { registeredProcesses = Nothing,
+      { testState = Nothing,
         Context.stdin = System.IO.stdin,
         workingDir,
         storageDir,
