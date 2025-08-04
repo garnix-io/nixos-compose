@@ -85,9 +85,10 @@ down ctx vmNames = do
       Nothing -> T.putStrLn $ vmNameToText vmName <> " is not running, nothing to do"
       Just vmState -> case vmState of
         Starting {} -> do
-          T.hPutStrLn stderr "a: building, cannot stop a building vm"
+          T.hPutStrLn stderr $ vmNameToText vmName <> ": building, cannot stop a building vm"
           throwIO $ ExitFailure 1
         Running {pid} -> do
+          T.putStrLn $ "stopping " <> vmNameToText vmName
           signalProcess sigKILL $ fromIntegral pid
           removeVm ctx vmName
 
