@@ -1,7 +1,8 @@
 module CliSpec where
 
 import Context
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (myThreadId, newEmptyMVar, putMVar, readMVar, threadDelay, throwTo)
+import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
 import Data.Maybe (fromJust)
@@ -163,6 +164,28 @@ spec = do
           test ctx ["up", "a"] `shouldReturn` TestResult "" "Building NixOS config...\ntest output\n" (ExitFailure 42)
           (^. #vms) <$> readState ctx `shouldReturn` mempty
           (^. #vde) <$> readState ctx `shouldReturn` Nothing
+
+      it "doesn't add a vm to the state when interrupted by an async exception, e.g. Ctrl-C" $ do
+        blockingOnBuild <- newEmptyMVar
+        let blockingBuildVmScript :: Context -> Context
+            blockingBuildVmScript =
+              (#nixVms . #buildVmScript)
+                .~ ( \_ctx _vmName _ip -> do
+                       putMVar blockingOnBuild ()
+                       forever $ threadDelay 1_000_000
+                   )
+        withMockContext ["a"] $ \(blockingBuildVmScript -> ctx) -> do
+          Ki.scoped $ \scope -> do
+            threadId <- newEmptyMVar
+            _ <- Ki.fork scope $ do
+              myThreadId >>= putMVar threadId
+              test ctx ["up", "a"]
+            readMVar blockingOnBuild
+            threadId <- readMVar threadId
+            throwTo threadId UserInterrupt
+            waitFor $ do
+              (^. #vms) <$> readState ctx `shouldReturn` mempty
+              (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
   describe "down" $ do
     it "stops vms" $ do

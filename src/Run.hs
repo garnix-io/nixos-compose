@@ -3,8 +3,8 @@ module Run where
 import Commands
 import Context (Context)
 import Context.Production qualified
-import Control.Exception (SomeException, fromException)
-import Control.Exception.Safe (try)
+import Control.Exception qualified
+import Control.Exception.Safe (SomeException, fromException)
 import Data.Text hiding (elem)
 import Options
 import Options.Applicative
@@ -34,7 +34,8 @@ run ctx args =
 
 handleExceptions :: IO ExitCode -> IO ExitCode
 handleExceptions action = do
-  result <- try action
+  -- handle all -- including async -- exceptions
+  result <- Control.Exception.try action
   case result of
     Right exitCode -> pure exitCode
     Left (e :: SomeException) -> do

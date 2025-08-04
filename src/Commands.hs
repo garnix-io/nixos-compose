@@ -10,7 +10,7 @@ where
 
 import Context
 import Control.Concurrent (threadDelay)
-import Control.Exception.Safe (SomeException, try)
+import Control.Exception.Safe (onException)
 import Cradle
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
@@ -75,12 +75,8 @@ up ctx verbosity upOptions = do
 
 removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
 removeVmWhenFailing ctx vmName action = do
-  result :: Either SomeException a <- try action
-  case result of
-    Left e -> do
-      State.removeVm ctx vmName
-      throwIO e
-    Right a -> pure a
+  onException action $ do
+    State.removeVm ctx vmName
 
 down :: Context -> AllOrSomeVms -> IO ()
 down ctx vmNames = do
