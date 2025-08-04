@@ -62,7 +62,7 @@ up ctx verbosity upOptions = do
                 & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
           T.hPutStrLn stderr "Building NixOS config..."
           (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
-          T.hPutStrLn System.IO.stderr "Done"
+          T.hPutStrLn stderr "Done"
           T.hPutStrLn stderr "Starting VM..."
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
@@ -70,7 +70,7 @@ up ctx verbosity upOptions = do
           pure (pid, port)
         State.writeVmState ctx vmName (Running {pid = fromIntegral pid, port, ip})
         waitForVm ctx vmName
-        T.hPutStrLn System.IO.stderr "Done"
+        T.hPutStrLn stderr "Done"
   updateVmHostEntries ctx
 
 removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
