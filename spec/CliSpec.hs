@@ -4,11 +4,15 @@ import Context
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever)
 import Cradle
+import Data.Maybe (fromJust)
+import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Ki qualified
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), readVmState)
+import State (VmState (..), getPid, readVmState)
 import StdLib
-import System.Directory (listDirectory)
+import System.Directory (doesDirectoryExist, listDirectory)
+import System.Process (getPid)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
 import TestUtils
@@ -141,7 +145,48 @@ spec = do
               test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
               test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
-  describe "ssh" $ do
+  describe "down" $ do
+    it "stops vms" $ do
+      withMockContext ["a"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["up", "a"]
+        (stdout <$> assertSuccess (test ctx ["status", "a"])) `shouldReturn` "a: running\n"
+        state <- readVmState ctx "a"
+        _ <- assertSuccess $ test ctx ["down", "a"]
+        (stdout <$> assertSuccess (test ctx ["status", "a"])) `shouldReturn` "a: not running\n"
+        exist <- doesDirectoryExist ("/proc" </> show (fromJust $ State.getPid state))
+        when exist $ do
+          status <- do
+            contents <- T.readFile ("/proc" </> show (fromJust $ State.getPid state) </> "status")
+            pure $
+              contents
+                & T.lines
+                & mapMaybe (T.stripPrefix "State:")
+                & fmap T.strip
+          status `shouldBe` ["Z (zombie)"]
+
+    it "stops multiple specified vms" $ do
+      withMockContext ["a", "b", "c"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["up", "a", "b", "c"]
+        (stdout <$> assertSuccess (test ctx ["status"])) `shouldReturn` "a: running\nb: running\nc: running\n"
+        _ <- assertSuccess $ test ctx ["down", "a", "c"]
+        (stdout <$> assertSuccess (test ctx ["status"])) `shouldReturn` "a: not running\nb: running\nc: not running\n"
+
+    it "stops all vms when no vm name given" $ do
+      withMockContext ["a", "b"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["up", "a", "b"]
+        (stdout <$> assertSuccess (test ctx ["status"])) `shouldReturn` "a: running\nb: running\n"
+        _ <- assertSuccess $ test ctx ["down"]
+        (stdout <$> assertSuccess (test ctx ["status"])) `shouldReturn` "a: not running\nb: not running\n"
+
+    it "prints a nice message when no vm names are given and no vms are running" $ do
+      withMockContext ["a", "b"] $ \ctx -> do
+        (stdout <$> assertSuccess (test ctx ["down"])) `shouldReturn` "no vms running, nothing to do\n"
+
+    it "prints a nice message when the specified vms are not running" $ do
+      withMockContext ["a", "b"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["up", "a"]
+        (stdout <$> assertSuccess (test ctx ["down", "b"])) `shouldReturn` "b is not running, nothing to do\n"
+
     let cases =
           [ (["true"], ExitSuccess),
             (["false"], ExitFailure 1),

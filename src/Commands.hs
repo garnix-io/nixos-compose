@@ -16,7 +16,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Net.IPv4 qualified as IPv4
-import Options (UpOptions (..), Verbosity, VmName (..))
+import Options (AllOrSomeVms (..), Verbosity, VmName (..))
 import State
 import StdLib
 import System.Directory (doesFileExist)
@@ -33,17 +33,17 @@ list ctx = do
     [] -> "no vms configured"
     vms -> "configured vms: " <> T.intercalate ", " (map vmNameToText vms)
 
-up :: Context -> Verbosity -> UpOptions -> IO ()
+up :: Context -> Verbosity -> AllOrSomeVms -> IO ()
 up ctx verbosity upOptions = do
   vmNames <- case upOptions of
-    UpAll -> do
+    All -> do
       vmNames <- listVms (nixVms ctx) ctx
       case vmNames of
         [] -> do
           T.hPutStrLn stderr "No vms are defined. Nothing to do."
           throwIO $ ExitFailure 1
         a : r -> pure $ a :| r
-    UpSome vmNames -> pure vmNames
+    Some vmNames -> pure vmNames
   forM_ vmNames $ \vmName -> do
     ip <- getNextIp ctx
     existing <- claimVm ctx vmName $ Starting {ip}
@@ -68,16 +68,28 @@ up ctx verbosity upOptions = do
           waitForVm ctx vmName
   updateVmHostEntries ctx
 
-down :: Context -> VmName -> IO ()
-down ctx vmName = do
-  vmState <- readVmState ctx vmName
-  case vmState of
-    Starting {} -> do
-      T.hPutStrLn stderr "a: building, cannot stop a building vm"
-      throwIO $ ExitFailure 1
-    Running {pid} -> do
-      signalProcess sigKILL $ fromIntegral pid
-      removeVm ctx vmName
+down :: Context -> AllOrSomeVms -> IO ()
+down ctx vmNames = do
+  toStop <- case vmNames of
+    Some vmNames -> pure vmNames
+    All -> do
+      all <- listRunningVms ctx
+      case Map.keys all of
+        [] -> do
+          T.putStrLn "no vms running, nothing to do"
+          throwIO ExitSuccess
+        a : r -> pure $ a :| r
+  state <- readState ctx
+  forM_ toStop $ \vmName -> do
+    case Map.lookup vmName (state ^. #vms) of
+      Nothing -> T.putStrLn $ vmNameToText vmName <> " is not running, nothing to do"
+      Just vmState -> case vmState of
+        Starting {} -> do
+          T.hPutStrLn stderr "a: building, cannot stop a building vm"
+          throwIO $ ExitFailure 1
+        Running {pid} -> do
+          signalProcess sigKILL $ fromIntegral pid
+          removeVm ctx vmName
 
 waitForVm :: Context -> VmName -> IO ()
 waitForVm ctx vmName = do

@@ -9,7 +9,6 @@ import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import NixVms qualified
-import Options (VmName (..))
 import State (getPid, readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
@@ -148,7 +147,7 @@ spec = do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
-      state <- readVmState ctx (VmName "server")
+      state <- readVmState ctx "server"
       _ <- assertSuccess $ test ctx ["down", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
       exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))

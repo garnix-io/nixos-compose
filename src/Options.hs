@@ -3,14 +3,13 @@ module Options
     Options (..),
     Verbosity (..),
     Command (..),
-    UpOptions (..),
+    AllOrSomeVms (..),
     VmName (..),
   )
 where
 
 import Data.Aeson (FromJSONKey, ToJSONKey)
 import Data.List.NonEmpty (NonEmpty (..))
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text
 import Options.Applicative
 import StdLib
@@ -30,10 +29,10 @@ instance Parseable Options where
 
 data Command
   = List
-  | Up {verbosity :: Verbosity, options :: UpOptions}
+  | Up {verbosity :: Verbosity, vms :: AllOrSomeVms}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
-  | Down {vmName :: VmName}
+  | Down {vms :: AllOrSomeVms}
   | Ip {vmName :: VmName}
   deriving stock (Show, Generic)
 
@@ -93,17 +92,17 @@ instance Parseable Verbosity where
           <> help "increase verbosity"
       )
 
-data UpOptions
-  = UpAll
-  | UpSome (NonEmpty VmName)
+data AllOrSomeVms
+  = All
+  | Some (NonEmpty VmName)
   deriving stock (Show, Generic)
 
-instance Parseable UpOptions where
+instance Parseable AllOrSomeVms where
   parser =
     many (parser :: Parser VmName)
       <&> ( \case
-              [] -> UpAll
-              a : r -> UpSome (a :| r)
+              [] -> All
+              a : r -> Some (a :| r)
           )
 
 newtype VmName = VmName {vmNameToText :: Text}
