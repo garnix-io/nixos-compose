@@ -33,7 +33,7 @@ data Command
   | Up {verbosity :: Verbosity, options :: UpOptions}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
-  | Stop {vmName :: VmName}
+  | Down {vmName :: VmName}
   | Ip {vmName :: VmName}
   deriving stock (Show, Generic)
 
@@ -65,10 +65,10 @@ instance Parseable Command where
                 (fullDesc <> progDesc "Show the status of running vms")
             )
           <> command
-            "stop"
+            "down"
             ( info
-                (Stop <$> parser)
-                (progDesc "Stop a running vm")
+                (Down <$> parser)
+                (progDesc "Stop running vms")
             )
           <> command
             "ip"

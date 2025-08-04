@@ -26,7 +26,7 @@ run ctx args =
     case opts of
       List -> list ctx
       Up verbosity vmNames -> up ctx verbosity vmNames
-      Stop vmName -> stop ctx vmName
+      Down vmName -> down ctx vmName
       Ssh vmName command -> ssh ctx vmName (Data.Text.unwords command)
       Status vmNames -> status ctx vmNames
       Ip vmName -> ip ctx vmName

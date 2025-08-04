@@ -149,7 +149,7 @@ spec = do
       _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
       state <- readVmState ctx (VmName "server")
-      _ <- assertSuccess $ test ctx ["stop", "server"]
+      _ <- assertSuccess $ test ctx ["down", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
       exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))
       when exist $ do

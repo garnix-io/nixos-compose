@@ -37,7 +37,7 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
         state <- readState ctx
-        _ <- assertSuccess $ test ctx ["stop", "a"]
+        _ <- assertSuccess $ test ctx ["down", "a"]
         (^. #vde) <$> readState ctx `shouldReturn` Nothing
         (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . to fromJust . #pid), "-o", "stat", "--no-headers"]
         -- It's stopped, but still a zombie, since it's a child of the test-suite.
@@ -46,7 +46,7 @@ spec = do
     it "cleans up the files after stopping" $ do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
-        _ <- assertSuccess $ test ctx ["stop", "a"]
+        _ <- assertSuccess $ test ctx ["down", "a"]
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
     it "keeps the switch running for multiple vms" $ do
@@ -54,7 +54,7 @@ spec = do
         _ <- assertSuccess $ test ctx ["up", "a"]
         _ <- assertSuccess $ test ctx ["up", "b"]
         assertVdeIsRunning ctx
-        _ <- assertSuccess $ test ctx ["stop", "b"]
+        _ <- assertSuccess $ test ctx ["down", "b"]
         assertVdeIsRunning ctx
 
     it "stops the switch after all vms are stopped" $ do
@@ -62,8 +62,8 @@ spec = do
         _ <- assertSuccess $ test ctx ["up", "a"]
         _ <- assertSuccess $ test ctx ["up", "b"]
         assertVdeIsRunning ctx
-        _ <- assertSuccess $ test ctx ["stop", "b"]
-        _ <- assertSuccess $ test ctx ["stop", "a"]
+        _ <- assertSuccess $ test ctx ["down", "b"]
+        _ <- assertSuccess $ test ctx ["down", "a"]
         (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
     it "restarts the switch after e.g. a reboot" $ do
@@ -112,10 +112,10 @@ spec = do
         stdout <$> assertSuccess (test ctx ["ip", "a"]) `shouldReturn` "10.0.0.2\n"
         _ <- assertSuccess $ test ctx ["up", "b"]
         stdout <$> assertSuccess (test ctx ["ip", "b"]) `shouldReturn` "10.0.0.3\n"
-        _ <- assertSuccess $ test ctx ["stop", "b"]
+        _ <- assertSuccess $ test ctx ["down", "b"]
         _ <- assertSuccess $ test ctx ["up", "b"]
         stdout <$> assertSuccess (test ctx ["ip", "b"]) `shouldReturn` "10.0.0.4\n"
-        _ <- assertSuccess $ test ctx ["stop", "b"]
+        _ <- assertSuccess $ test ctx ["down", "b"]
         _ <- assertSuccess $ test ctx ["up", "c"]
         stdout <$> assertSuccess (test ctx ["ip", "c"]) `shouldReturn` "10.0.0.5\n"
 

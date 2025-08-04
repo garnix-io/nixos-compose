@@ -1,7 +1,7 @@
 module Commands
   ( list,
     up,
-    stop,
+    down,
     ssh,
     status,
     Commands.ip,
@@ -68,8 +68,8 @@ up ctx verbosity upOptions = do
           waitForVm ctx vmName
   updateVmHostEntries ctx
 
-stop :: Context -> VmName -> IO ()
-stop ctx vmName = do
+down :: Context -> VmName -> IO ()
+down ctx vmName = do
   vmState <- readVmState ctx vmName
   case vmState of
     Starting {} -> do

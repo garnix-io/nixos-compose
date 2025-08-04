@@ -4,4 +4,4 @@ A command line tool to run nixos configurations from flake files locally for dev
 
 ## todo
 
-- make sure that `nixos-compose stop` cleans up in the storageDir
+- make sure that `nixos-compose down` cleans up in the storageDir

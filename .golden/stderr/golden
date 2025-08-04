@@ -7,5 +7,5 @@ Available commands:
   up                       Start development vms
   ssh                      `ssh` into a running vm
   status                   Show the status of running vms
-  stop                     Stop a running vm
+  down                     Stop running vms
   ip                       Print the ip address of a vm (in the virtual network)

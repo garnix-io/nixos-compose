@@ -116,7 +116,7 @@ spec = do
               _ <- Ki.fork scope $ do
                 test ctx ["up", "a"]
               waitFor $ do
-                test ctx ["stop", "a"]
+                test ctx ["down", "a"]
                   `shouldReturn` TestResult
                     { stdout = "",
                       stderr = "a: building, cannot stop a building vm\n",
