@@ -127,6 +127,7 @@ test-suite spec
     , hspec-golden
     , interpolate
     , ip
+    , ki
     , lens
     , mockery
     , optparse-applicative

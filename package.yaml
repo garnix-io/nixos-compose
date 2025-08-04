@@ -12,6 +12,7 @@ tests:
       - hspec
       - hspec-discover
       - hspec-golden
+      - ki
       - mockery
       - silently
       - temporary

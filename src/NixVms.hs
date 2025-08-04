@@ -22,6 +22,7 @@ import System.IO (Handle, IOMode (..), openFile)
 import System.IO qualified
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
+import Vde qualified
 import Prelude
 
 production :: NixVms
@@ -30,7 +31,7 @@ production =
     { listVms = listVmsImpl,
       buildVmScript = buildVmScriptImpl,
       runVm = runVmImpl,
-      sshIntoVm = sshIntoVmImpl
+      sshIntoVm = SshIntoVm sshIntoVmImpl
     }
 
 listVmsImpl :: Context -> IO [VmName]
@@ -138,7 +139,7 @@ runVmImpl ctx verbosity vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
-  vdeCtlDir <- getVdeCtlDir ctx
+  vdeCtlDir <- Vde.getVdeCtlDir ctx
   let mkProc stdout stderr =
         ( System.Process.proc
             vmExecutable
@@ -180,23 +181,27 @@ streamHandles prefix input output = do
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
 sshIntoVmImpl ctx vmName command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
-  port <- State.readVmState ctx vmName <&> (^. #port)
-  Cradle.run $
-    Cradle.cmd "ssh"
-      & Cradle.setStdinHandle (ctx ^. #stdin)
-      & Cradle.addArgs
-        [ "-i",
-          cs vmKeyPath,
-          "-l",
-          "vmuser",
-          "-o",
-          "StrictHostKeyChecking=no",
-          "-o",
-          "UserKnownHostsFile=/dev/null",
-          "-o",
-          "ConnectTimeout=2",
-          "-p",
-          cs (show port),
-          "localhost",
-          command
-        ]
+  vmState <- State.readVmState ctx vmName
+  case vmState of
+    Starting {} -> do
+      error "cannot ssh into a starting vm"
+    Running {port} -> do
+      Cradle.run $
+        Cradle.cmd "ssh"
+          & Cradle.setStdinHandle (ctx ^. #stdin)
+          & Cradle.addArgs
+            [ "-i",
+              cs vmKeyPath,
+              "-l",
+              "vmuser",
+              "-o",
+              "StrictHostKeyChecking=no",
+              "-o",
+              "UserKnownHostsFile=/dev/null",
+              "-o",
+              "ConnectTimeout=2",
+              "-p",
+              cs (show port),
+              "localhost",
+              command
+            ]

@@ -6,7 +6,7 @@ import Control.Monad (replicateM)
 import Cradle
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
-import State (VdeState (..), VmState (..), getNextIp, mkState, modifyState_, readState, readVmState, writeVmState)
+import State (getNextIp, getPid, readState, readVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
@@ -18,15 +18,12 @@ spec = do
   describe "`vde_switch`" $ do
     let assertVdeIsRunning ctx = do
           state <- readState ctx
-          case state of
-            Nothing -> expectationFailure "assertVdeIsRunning: no state file"
-            Just state -> do
-              exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . #pid :: Int64) </> "exe"
-              takeFileName exe `shouldBe` "vde_switch"
+          exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: Int64) </> "exe"
+          takeFileName exe `shouldBe` "vde_switch"
 
     let assertVmIsRunning ctx vmName = do
           state <- readVmState ctx vmName
-          let pid :: Int = state ^. #pid
+          let pid :: Int = fromJust $ getPid state
           comm <- readFile $ "/proc" </> show (pid :: Int) </> "comm"
           comm `shouldBe` "sleep\n"
 
@@ -38,10 +35,10 @@ spec = do
     it "stops the switch when a vm is stopped" $ do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
-        state <- fromJust <$> readState ctx
+        state <- readState ctx
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        readState ctx `shouldReturn` Nothing
-        (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . #pid), "-o", "stat", "--no-headers"]
+        (^. #vde) <$> readState ctx `shouldReturn` Nothing
+        (StdoutRaw stdout) <- Cradle.run $ cmd "ps" & addArgs ["-p", show (state ^. #vde . to fromJust . #pid), "-o", "stat", "--no-headers"]
         -- It's stopped, but still a zombie, since it's a child of the test-suite.
         stdout `shouldSatisfy` (`elem` ["Z\n", "Z+\n"])
 
@@ -49,7 +46,7 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        listDirectory (ctx ^. #storageDir) `shouldReturn` []
+        listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
     it "keeps the switch running for multiple vms" $ do
       withMockContext ["a", "b"] $ \ctx -> do
@@ -66,7 +63,7 @@ spec = do
         assertVdeIsRunning ctx
         _ <- assertSuccess $ test ctx ["stop", "b"]
         _ <- assertSuccess $ test ctx ["stop", "a"]
-        readState ctx `shouldReturn` Nothing
+        (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
     it "restarts the switch after e.g. a reboot" $ do
       withMockContext ["a", "b"] $ \ctx -> do
@@ -122,21 +119,11 @@ spec = do
         stdout <$> assertSuccess (test ctx ["ip", "c"]) `shouldReturn` "10.0.0.5\n"
 
     it "wraps around and doesn't assign ips that are in use" $ do
-      withMockContext [] $ \ctx -> do
-        modifyState_ ctx $ \_ -> do
-          pure $ Just $ mkState (VdeState {pid = 0})
-        ips <- replicateM 252 $ do
+      withMockContext ["a"] $ \ctx -> do
+        _ <- assertSuccess $ test ctx ["start", "a"]
+        ips <- replicateM 251 $ do
           getNextIp ctx
-        ips `shouldBe` [IPv4.fromOctets 10 0 0 2 .. IPv4.fromOctets 10 0 0 253]
-        writeVmState
-          ctx
-          "a"
-          ( VmState
-              { port = 0,
-                pid = 0,
-                ip = fromJust (IPv4.decode "10.0.0.3")
-              }
-          )
+        ips `shouldBe` [IPv4.fromOctets 10 0 0 3 .. IPv4.fromOctets 10 0 0 253]
         ips <- replicateM 3 $ do
           IPv4.encode <$> getNextIp ctx
-        ips `shouldBe` ["10.0.0.254", "10.0.0.2", "10.0.0.4"]
+        ips `shouldBe` ["10.0.0.254", "10.0.0.3", "10.0.0.4"]

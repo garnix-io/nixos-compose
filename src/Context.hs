@@ -35,5 +35,11 @@ data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
     buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
     runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
-    sshIntoVm :: forall o. (Cradle.Output o) => Context -> VmName -> Text -> IO o
+    sshIntoVm :: SshIntoVm
+  }
+  deriving stock (Generic)
+
+-- wrapper type to make `generic-lens` work
+newtype SshIntoVm = SshIntoVm
+  { runSshIntoVm :: forall o. (Cradle.Output o) => Context -> VmName -> Text -> IO o
   }

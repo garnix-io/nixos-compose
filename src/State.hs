@@ -1,23 +1,21 @@
 module State
   ( -- * global state
     State (..),
-    mkState,
+    emptyState,
     readState,
     modifyState,
     modifyState_,
 
-    -- * vde state
-    VdeState (..),
-    getVdeCtlDir,
-
     -- * vm state
     VmState (..),
+    getPid,
+    vmStateToText,
+    claimVm,
     readVmState,
     writeVmState,
     removeVm,
     getVmFilePath,
     listRunningVms,
-    cleanUpVms,
 
     -- * IPs
     getNextIp,
@@ -39,58 +37,53 @@ import System.Directory
     doesDirectoryExist,
     listDirectory,
     removeDirectoryRecursive,
-    removeFile,
   )
 import System.FileLock
 import Utils (filterMapM)
+import Vde qualified
 
 -- global state
 
 data State = State
-  { vde :: VdeState,
+  { vde :: Maybe Vde.VdeState,
     vms :: Map VmName VmState,
     nextIp :: IPv4
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
 
-mkState :: VdeState -> State
-mkState vdeState =
+emptyState :: State
+emptyState =
   State
-    { vde = vdeState,
+    { vde = Nothing,
       vms = mempty,
       nextIp = fst ipRange
     }
 
-readState :: Context -> IO (Maybe State)
-readState ctx = do
-  file <- getStateFile ctx
-  withFileLock file Shared $ \_lock -> do
-    contents <- T.readFile file
-    pure $
-      if contents == ""
-        then Nothing
-        else Just (either error id (eitherDecode' (cs contents) :: Either String State))
-
-modifyState :: Context -> (Maybe State -> IO (Maybe State, a)) -> IO a
+-- every other state interaction is implemented in terms of this `modifyState` function
+modifyState :: Context -> (State -> IO (State, a)) -> IO a
 modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
     contents <- T.readFile file
-    let previous =
+    let parsed =
           if contents == ""
-            then Nothing
-            else Just (either error id (eitherDecode' (cs contents) :: Either String State))
-    (next, a) <- action previous
-    case next of
-      Just next -> Data.ByteString.Lazy.writeFile file (encode (next :: State))
-      Nothing -> removeFile file
+            then emptyState
+            else either error id (eitherDecode' (cs contents) :: Either String State)
+    cleanedUp <- cleanUpVms ctx parsed
+    (next, a) <- action cleanedUp
+    next <- cleanUpVdeSwitch ctx next
+    Data.ByteString.Lazy.writeFile file (encode (next :: State))
     pure a
 
-modifyState_ :: Context -> (Maybe State -> IO (Maybe State)) -> IO ()
+modifyState_ :: Context -> (State -> IO State) -> IO ()
 modifyState_ ctx action = modifyState ctx $ \state -> do
   new <- action state
   pure (new, ())
+
+readState :: Context -> IO State
+readState ctx = modifyState ctx $ \state -> do
+  pure (state, state)
 
 getStateFile :: Context -> IO FilePath
 getStateFile ctx = do
@@ -98,53 +91,92 @@ getStateFile ctx = do
   createDirectoryIfMissing True dir
   pure $ dir </> "state.json"
 
--- * vde state
-
-newtype VdeState = VdeState
-  { pid :: Int64
-  }
-  deriving stock (Generic, Show, Eq)
-  deriving anyclass (ToJSON, FromJSON)
-
-getVdeCtlDir :: Context -> IO FilePath
-getVdeCtlDir ctx = do
-  let ctlDir = storageDir ctx </> "vde1.ctl"
-  createDirectoryIfMissing True ctlDir
-  pure ctlDir
+cleanUpVdeSwitch :: Context -> State -> IO State
+cleanUpVdeSwitch ctx state =
+  case (state ^. #vde, Map.keys (state ^. #vms)) of
+    (Nothing, _) -> pure state
+    (Just _vdeState, _ : _) -> pure state
+    (Just vdeState, []) -> do
+      Vde.stop ctx vdeState
+      pure $ state & #vde .~ Nothing
 
 -- * vm state
 
-data VmState = VmState
-  { port :: Int,
-    pid :: Int,
-    ip :: IPv4
-  }
+data VmState
+  = Starting
+      { ip :: IPv4
+      }
+  | Running
+      { port :: Int,
+        pid :: Int,
+        ip :: IPv4
+      }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
+
+getPid :: VmState -> Maybe Int
+getPid = \case
+  Starting {} -> Nothing
+  Running {pid} -> Just pid
+
+vmStateToText :: VmState -> Text
+vmStateToText = \case
+  Starting {} -> "starting"
+  Running {} -> "running"
+
+cleanUpVms :: Context -> State -> IO State
+cleanUpVms ctx state = do
+  running <- filterMapM isRunning (state ^. #vms)
+  pure $ state & #vms .~ running
+  where
+    isRunning :: VmName -> VmState -> IO Bool
+    isRunning vmName = \case
+      Starting {} -> pure True
+      Running {pid} -> do
+        isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: Int)
+        unless isRunning $ do
+          T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
+          removeVmDir ctx vmName
+        pure isRunning
+
+claimVm :: Context -> VmName -> VmState -> IO (Either VmState ())
+claimVm ctx vm new = modifyState ctx $ \state -> do
+  case Map.lookup vm (state ^. #vms) of
+    Just existing -> do
+      pure (state, Left existing)
+    Nothing -> do
+      vdeState <- case state ^. #vde of
+        Just vdeState -> pure vdeState
+        Nothing -> Vde.start ctx
+      pure
+        ( state
+            & (#vms %~ Map.insert vm new)
+            & (#vde ?~ vdeState),
+          Right ()
+        )
 
 readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
-  case state of
-    Nothing -> error "no state file found"
-    Just state -> do
-      case Map.lookup vmName (state ^. #vms) of
-        Nothing -> error "vm not found"
-        Just vmState -> pure vmState
+  case Map.lookup vmName (state ^. #vms) of
+    Nothing -> error "vm not found"
+    Just vmState -> pure vmState
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
 writeVmState ctx vmName vmState = do
-  modifyState_ ctx $ \case
-    Nothing -> error "no state file found"
-    Just state -> do
-      pure $ Just $ state & #vms %~ Map.insert vmName vmState
+  modifyState_ ctx $ \state -> do
+    pure $ state & #vms %~ Map.insert vmName vmState
 
 removeVm :: Context -> VmName -> IO ()
 removeVm ctx vmName = do
   removeVmDir ctx vmName
-  modifyState_ ctx $ \case
-    Nothing -> pure Nothing
-    Just state -> pure $ Just $ state & #vms %~ Map.delete vmName
+  modifyState_ ctx $ \state -> do
+    pure $ state & #vms %~ Map.delete vmName
+
+listRunningVms :: Context -> IO (Map VmName VmState)
+listRunningVms ctx = do
+  state <- readState ctx
+  pure $ state ^. #vms
 
 removeVmDir :: Context -> VmName -> IO ()
 removeVmDir ctx vmName = do
@@ -159,38 +191,17 @@ getVmFilePath ctx vmName path = do
   createDirectoryIfMissing True dir
   pure $ dir </> path
 
-listRunningVms :: Context -> IO [VmName]
-listRunningVms ctx = modifyState ctx $ \case
-  Nothing -> pure (Nothing, [])
-  Just state -> do
-    state' <- cleanUpVms ctx state
-    pure (Just state', Map.keys $ state' ^. #vms)
-
-cleanUpVms :: Context -> State -> IO State
-cleanUpVms ctx state = do
-  running <- filterMapM isRunning (state ^. #vms)
-  pure $ state & #vms .~ running
-  where
-    isRunning :: VmName -> VmState -> IO Bool
-    isRunning vmName vmState = do
-      isRunning <- doesDirectoryExist $ "/proc/" <> show (vmState ^. #pid :: Int)
-      unless isRunning $ do
-        T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
-        removeVmDir ctx vmName
-      pure isRunning
-
 -- * IPs
 
 ipRange :: (IPv4, IPv4)
 ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)
 
 getNextIp :: Context -> IO IPv4
-getNextIp ctx = modifyState ctx $ \case
-  Nothing -> error "getNextIp: state not initialized"
-  Just state -> do
-    let findIp candidate
-          | candidate > snd ipRange = findIp (fst ipRange)
-          | candidate `elem` fmap (^. #ip) (state ^. #vms) = findIp (succ candidate)
-          | otherwise = candidate
-    let ip = findIp $ state ^. #nextIp
-    pure (Just $ state & #nextIp .~ succ ip, ip)
+getNextIp ctx = modifyState ctx $ \state -> do
+  let findIp candidate
+        | candidate > snd ipRange = findIp (fst ipRange)
+        | candidate `elem` map (^. #ip) (Map.elems (state ^. #vms)) =
+            findIp (succ candidate)
+        | otherwise = candidate
+  let ip = findIp $ state ^. #nextIp
+  pure (state & #nextIp .~ succ ip, ip)

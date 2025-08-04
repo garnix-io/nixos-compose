@@ -3,13 +3,14 @@ module IntegrationSpec (spec) where
 import Context
 import Cradle qualified
 import Data.ByteString qualified as B
+import Data.Maybe (fromJust)
 import Data.String.Conversions
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import NixVms qualified
 import Options (VmName (..))
-import State (readVmState)
+import State (getPid, readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
 import System.IO (SeekMode (..), hSeek)
@@ -150,10 +151,10 @@ spec = do
       state <- readVmState ctx (VmName "server")
       _ <- assertSuccess $ test ctx ["stop", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
-      exist <- doesDirectoryExist ("/proc" </> show (state ^. #pid))
+      exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))
       when exist $ do
         status <- do
-          contents <- T.readFile ("/proc" </> show (state ^. #pid) </> "status")
+          contents <- T.readFile ("/proc" </> show (fromJust $ getPid state) </> "status")
           pure $
             contents
               & T.lines
