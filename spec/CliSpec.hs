@@ -12,7 +12,6 @@ import Net.IPv4 qualified as IPv4
 import State (VmState (..), getPid, readVmState)
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
-import System.Process (getPid)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
 import TestUtils
