@@ -78,16 +78,16 @@ spec = do
         result ^. #stdout `shouldBe` "no vms configured\n"
 
   describe "up" $ do
-    context "when `--all` is given" $ do
+    context "when no vm names are given" $ do
       it "starts all vms" $ do
         withMockContext ["a", "b", "c"] $ \ctx -> do
-          _ <- assertSuccess $ test ctx ["up", "--all"]
+          _ <- assertSuccess $ test ctx ["up"]
           result <- assertSuccess $ test ctx ["status"]
           result ^. #stdout `shouldBe` "a: running\nb: running\nc: running\n"
 
       it "gives a nice message when no vms are defined" $ do
         withMockContext [] $ \ctx -> do
-          result <- test ctx ["up", "--all"]
+          result <- test ctx ["up"]
           result `shouldBe` TestResult "" "No vms are defined. Nothing to do.\n" (ExitFailure 1)
 
     describe "vm building state" $ do

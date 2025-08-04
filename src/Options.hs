@@ -9,7 +9,7 @@ module Options
 where
 
 import Data.Aeson (FromJSONKey, ToJSONKey)
-import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text
 import Options.Applicative
@@ -100,8 +100,11 @@ data UpOptions
 
 instance Parseable UpOptions where
   parser =
-    flag' UpAll (long "all")
-      <|> (UpSome . NonEmpty.fromList <$> some parser)
+    many (parser :: Parser VmName)
+      <&> ( \case
+              [] -> UpAll
+              a : r -> UpSome (a :| r)
+          )
 
 newtype VmName = VmName {vmNameToText :: Text}
   deriving stock (Eq, Show, Ord)

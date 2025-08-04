@@ -134,7 +134,7 @@ spec = do
       withMockContext ["a", "b", "c"] $ \ctx -> do
         let allPairs :: [a] -> [(a, a)]
             allPairs list = (,) <$> list <*> list
-        _ <- assertSuccess $ test ctx ["up", "--all"]
+        _ <- assertSuccess $ test ctx ["up"]
         testState <- readTestState ctx
         testState ^. #vmHostEntries
           `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 2),
@@ -152,7 +152,7 @@ spec = do
           "invalid?hostname"
         ]
         $ \ctx -> do
-          _ <- assertSuccess $ test ctx ["up", "--all"]
+          _ <- assertSuccess $ test ctx ["up"]
           testState <- readTestState ctx
           testState ^. #vmHostEntries
             `shouldBe` ( (VmName "invalid?hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
@@ -165,5 +165,5 @@ spec = do
           "invalid?hostname"
         ]
         $ \ctx -> do
-          result <- assertSuccess (test ctx ["up", "--all"])
+          result <- assertSuccess (test ctx ["up"])
           cs (result ^. #stderr) `shouldContain` "WARN: \"invalid?hostname\" is not a valid hostname. It will not be added to /etc/hosts.\n"
