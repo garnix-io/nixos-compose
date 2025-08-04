@@ -181,6 +181,12 @@ spec = do
         result <- assertSuccess $ test ctx ["ssh", "b", "ping -c 1 " <> aIp]
         result ^. #stdout `shouldSatisfy` ("1 received" `T.isInfixOf`)
 
+      it "allows connecting to VMs by their name" $ \ctx -> do
+        copyFile (repoRoot </> "spec/domains/flake.nix") (workingDir ctx </> "flake.nix")
+        _ <- assertSuccess $ test ctx ["start", "server", "client"]
+        result <- assertSuccess $ test ctx ["ssh", "client", "fetch-from-server"]
+        result ^. #stdout `shouldBe` "hello from nginx"
+
   context "not inside a temporary working dir (for hspec-golden)" $ do
     it "stores the qcow2 image and other files in the storage dir" $ do
       stdout <- inTempDirectory $ do

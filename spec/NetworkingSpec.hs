@@ -1,17 +1,18 @@
 module NetworkingSpec where
 
 import Context
-import Control.Concurrent (readMVar)
 import Control.Monad (replicateM)
 import Cradle
 import Data.Maybe (fromJust)
 import Net.IPv4 qualified as IPv4
+import Options (VmName (..))
 import State (getNextIp, getPid, readState, readVmState)
 import StdLib
 import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
 import Test.Hspec
 import TestUtils
+import Utils
 
 spec :: Spec
 spec = do
@@ -68,7 +69,7 @@ spec = do
     it "restarts the switch after e.g. a reboot" $ do
       withMockContext ["a", "b"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["start", "a"]
-        readMVar (fromJust (ctx ^. #registeredProcesses)) >>= mapM_ endProcess
+        endAllRegisteredProcesses ctx
         _ <- assertSuccess $ test ctx ["start", "a"]
         assertVdeIsRunning ctx
         assertVmIsRunning ctx "a"
@@ -127,3 +128,42 @@ spec = do
         ips <- replicateM 3 $ do
           IPv4.encode <$> getNextIp ctx
         ips `shouldBe` ["10.0.0.254", "10.0.0.3", "10.0.0.4"]
+
+  describe "hostnames" $ do
+    it "registers hostname mappings amongst all VMs" $ do
+      withMockContext ["a", "b", "c"] $ \ctx -> do
+        let allPairs :: [a] -> [(a, a)]
+            allPairs list = (,) <$> list <*> list
+        _ <- assertSuccess $ test ctx ["start", "--all"]
+        testState <- readTestState ctx
+        testState ^. #vmHostEntries
+          `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 2),
+                         ("b", IPv4.ipv4 10 0 0 3),
+                         ("c", IPv4.ipv4 10 0 0 4)
+                       ]
+                         & allPairs
+                         & map (\((fromName, _), (toName, toIP)) -> (VmName fromName, fromJust $ parseHostname toName) ~> toIP)
+                         & mconcat
+                     )
+
+    it "only sets VM names that are valid hostnames" $ do
+      withMockContext
+        [ "valid-hostname",
+          "invalid?hostname"
+        ]
+        $ \ctx -> do
+          _ <- assertSuccess $ test ctx ["start", "--all"]
+          testState <- readTestState ctx
+          testState ^. #vmHostEntries
+            `shouldBe` ( (VmName "invalid?hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+                           <> (VmName "valid-hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+                       )
+
+    it "prints a warning if an invalid hostname is used" $ do
+      withMockContext
+        [ "valid-hostname",
+          "invalid?hostname"
+        ]
+        $ \ctx -> do
+          result <- assertSuccess (test ctx ["start", "--all"])
+          cs (result ^. #stderr) `shouldContain` "WARN: \"invalid?hostname\" is not a valid hostname. It will not be added to /etc/hosts.\n"

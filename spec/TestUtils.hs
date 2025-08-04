@@ -3,11 +3,11 @@
 module TestUtils where
 
 import Context
-import Control.Concurrent (modifyMVar_, newMVar, readMVar, threadDelay)
+import Control.Concurrent (newMVar, readMVar, threadDelay)
 import Control.Exception.Safe (SomeException, finally, try)
 import Cradle qualified
 import Data.Map qualified as Map
-import Data.Maybe (isJust)
+import Data.Maybe (fromJust, isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
@@ -63,17 +63,24 @@ withContext nixVms action = do
   withSystemTempFile "test-stdin" $ \_stdinFile stdinHandle -> do
     withSystemTempDirectory "test-working-dir" $ \workingDir -> do
       withSystemTempDirectory "test-storage-dir" $ \storageDir -> do
-        processHandles <- newMVar mempty
+        testState <- newMVar $ TestState mempty mempty
         let ctx =
               Context
-                { registeredProcesses = Just processHandles,
+                { testState = Just testState,
                   stdin = stdinHandle,
                   workingDir = workingDir,
                   storageDir = storageDir </> "nixos-compose",
                   nixVms
                 }
-        action ctx
-          `finally` (readMVar processHandles >>= mapM_ endProcess)
+        action ctx `finally` endAllRegisteredProcesses ctx
+
+readTestState :: Context -> IO TestState
+readTestState ctx = readMVar (fromJust $ ctx ^. #testState)
+
+endAllRegisteredProcesses :: Context -> IO ()
+endAllRegisteredProcesses ctx = do
+  testState <- readTestState ctx
+  mapM_ endProcess (testState ^. #registeredProcesses)
 
 endProcess :: ProcessHandle -> IO ()
 endProcess handle = do
@@ -82,9 +89,9 @@ endProcess handle = do
   pure ()
 
 stopProcess :: Context -> ProcessType -> IO ()
-stopProcess ctx typ = case ctx ^. #registeredProcesses of
-  Nothing -> error "registeredProcesses is Nothing"
-  Just mvar -> modifyMVar_ mvar $ \map -> case Map.lookup typ map of
+stopProcess ctx typ = updateTestState ctx $ \testState -> do
+  let map = testState ^. #registeredProcesses
+  case Map.lookup typ map of
     Nothing ->
       error $
         cs $
@@ -94,7 +101,7 @@ stopProcess ctx typ = case ctx ^. #registeredProcesses of
             <> T.intercalate ", " (fmap (cs . show) (Map.keys map))
     Just handle -> do
       endProcess handle
-      pure $ Map.delete typ map
+      pure $ testState & #registeredProcesses .~ Map.delete typ map
 
 instance IsString VmName where
   fromString :: String -> VmName
@@ -128,7 +135,9 @@ withMockContext vmNames action = do
                 Cradle.run $
                   Cradle.cmd "bash"
                     & Cradle.addArgs ["-c", command]
-                    & Cradle.setWorkingDir tempDir
+                    & Cradle.setWorkingDir tempDir,
+            updateVmHostsEntry = \ctx vmName hostName ip -> do
+              updateTestState ctx $ pure . (#vmHostEntries %~ Map.insert (vmName, hostName) ip)
           }
   withContext mockNixVms action
 
@@ -148,3 +157,6 @@ waitFor action = do
               inner startTime
             else throwIO e
         Right a -> pure a
+
+(~>) :: k -> v -> Map.Map k v
+(~>) = Map.singleton

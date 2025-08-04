@@ -1,4 +1,15 @@
-module Utils where
+module Utils
+  ( dbg,
+    trace,
+    logStep,
+    runWithErrorHandling,
+    filterMapM,
+    Port,
+    Hostname,
+    parseHostname,
+    hostnameToText,
+  )
+where
 
 import Control.Monad (filterM)
 import Cradle
@@ -49,3 +60,21 @@ filterMapM pred map = do
   pure $ Map.fromList new
 
 type Port = Int
+
+newtype Hostname = Hostname {hostnameToText :: Text}
+  deriving newtype (Show, Eq, Ord)
+
+parseHostname :: Text -> Maybe Hostname
+parseHostname t =
+  if t /= ""
+    && T.all (`elem` allValid) t
+    && (`elem` alpha) (T.head t)
+    && (`elem` alphaNumeric) (T.last t)
+    && not ("--" `T.isInfixOf` t)
+    then Just $ Hostname t
+    else Nothing
+  where
+    alpha = ['a' .. 'z'] <> ['A' .. 'Z']
+    numeric = ['0' .. '9']
+    alphaNumeric = alpha <> numeric
+    allValid = alphaNumeric <> ['.', '-']

@@ -66,6 +66,7 @@ start ctx verbosity startOptions = do
           pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
           State.writeVmState ctx vmName (Running {pid = fromIntegral pid, port, ip})
           waitForVm ctx vmName
+  updateVmHostEntries ctx
 
 stop :: Context -> VmName -> IO ()
 stop ctx vmName = do
@@ -113,3 +114,14 @@ ip ctx vm = modifyState_ ctx $ \state -> do
       throwIO $ ExitFailure 1
     Just vmState -> T.putStrLn $ IPv4.encode (vmState ^. #ip)
   pure state
+
+updateVmHostEntries :: Context -> IO ()
+updateVmHostEntries ctx = do
+  runningVms <- Map.keys <$> listRunningVms ctx
+  forM_ runningVms $ \targetVmName -> do
+    case parseHostname $ vmNameToText targetVmName of
+      Nothing -> T.hPutStrLn stderr $ "WARN: \"" <> vmNameToText targetVmName <> "\" is not a valid hostname. It will not be added to /etc/hosts."
+      Just targetHostname -> do
+        targetIp <- (^. #ip) <$> readVmState ctx targetVmName
+        forM_ runningVms $ \updatingVmName -> do
+          updateVmHostsEntry (nixVms ctx) ctx updatingVmName targetHostname targetIp
