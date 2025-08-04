@@ -157,3 +157,12 @@ spec = do
             `shouldBe` ( (VmName "invalid?hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
                            <> (VmName "valid-hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
                        )
+
+    it "prints a warning if an invalid hostname is used" $ do
+      withMockContext
+        [ "valid-hostname",
+          "invalid?hostname"
+        ]
+        $ \ctx -> do
+          result <- assertSuccess (test ctx ["start", "--all"])
+          cs (result ^. #stderr) `shouldContain` "WARN: \"invalid?hostname\" is not a valid hostname. It will not be added to /etc/hosts.\n"

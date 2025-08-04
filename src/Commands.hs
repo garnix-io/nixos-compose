@@ -118,7 +118,11 @@ ip ctx vm = modifyState_ ctx $ \state -> do
 updateVmHostEntries :: Context -> IO ()
 updateVmHostEntries ctx = do
   runningVms <- Map.keys <$> listRunningVms ctx
-  forM_ (filter (isValidHostname . vmNameToText) runningVms) $ \targetVmName -> do
-    targetIp <- (^. #ip) <$> readVmState ctx targetVmName
-    forM_ runningVms $ \updatingVmName -> do
-      updateVmHostsEntry (nixVms ctx) ctx updatingVmName (vmNameToText targetVmName) targetIp
+  forM_ runningVms $ \targetVmName -> do
+    let targetHostname = vmNameToText targetVmName
+    if not $ isValidHostname targetHostname
+      then T.hPutStrLn stderr $ "WARN: \"" <> targetHostname <> "\" is not a valid hostname. It will not be added to /etc/hosts."
+      else do
+        targetIp <- (^. #ip) <$> readVmState ctx targetVmName
+        forM_ runningVms $ \updatingVmName -> do
+          updateVmHostsEntry (nixVms ctx) ctx updatingVmName targetHostname targetIp
