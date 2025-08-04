@@ -9,7 +9,6 @@ import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import NixVms qualified
-import Options (VmName (..))
 import State (getPid, readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
@@ -76,13 +75,13 @@ spec = do
 
     it "starts vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["start", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["ssh", "server", "hostname"])) `shouldReturn` "server\n"
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
 
     it "has nice output when starting vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      result <- assertSuccess $ test ctx ["start", "server"]
+      result <- assertSuccess $ test ctx ["up", "server"]
       stdout result `shouldBe` ""
       stderr result
         `shouldBe` T.unlines
@@ -94,7 +93,7 @@ spec = do
 
     it "has nice output when the nix build fails" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      result <- test ctx ["start", "does-not-exist"]
+      result <- test ctx ["up", "does-not-exist"]
       result ^. #exitCode `shouldBe` ExitFailure 1
       stdout result `shouldBe` ""
       cs (stderr result) `shouldContain` "Building NixOS config...\nCommand exited with code 1"
@@ -102,12 +101,12 @@ spec = do
 
     it "starts vms with arbitrary hostnames" $ \ctx -> do
       writeStandardFlake ctx (Just "{ lib, ...} : { networking.hostName = lib.mkForce \"other-hostname\"; }")
-      _ <- assertSuccess $ test ctx ["start", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server"]
       pure ()
 
     it "starts a shell by default" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["start", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server"]
       B.hPutStr (ctx ^. #stdin) "echo foo\nexit\n"
       hSeek (ctx ^. #stdin) AbsoluteSeek 0
       (stdout <$> assertSuccess (test ctx ["ssh", "server"])) `shouldReturn` "foo\n\ESC]0;\a"
@@ -140,16 +139,16 @@ spec = do
             };
           }
         |]
-      _ <- assertSuccess $ test ctx ["start", "a", "b"]
+      _ <- assertSuccess $ test ctx ["up", "a", "b"]
       (stdout <$> assertSuccess (test ctx ["ssh", "a", "hostname"])) `shouldReturn` "a\n"
       (stdout <$> assertSuccess (test ctx ["ssh", "b", "hostname"])) `shouldReturn` "b\n"
 
     it "can stop vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["start", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
-      state <- readVmState ctx (VmName "server")
-      _ <- assertSuccess $ test ctx ["stop", "server"]
+      state <- readVmState ctx "server"
+      _ <- assertSuccess $ test ctx ["down", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
       exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))
       when exist $ do
@@ -164,15 +163,15 @@ spec = do
 
     it "doesn't complain when starting a vm twice" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["start", "server"]
-      result <- assertSuccess $ test ctx ["start", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server"]
+      result <- assertSuccess $ test ctx ["up", "server"]
       result ^. #stdout `shouldBe` "server: already running\n"
 
     describe "networking" $ do
       repoRoot <- runIO getCurrentDirectory
       it "allows to talk from one vm to the other by static ip" $ \ctx -> do
         copyFile (repoRoot </> "spec/static-ips/flake.nix") (workingDir ctx </> "flake.nix")
-        _ <- assertSuccess $ test ctx ["start", "a", "b"]
+        _ <- assertSuccess $ test ctx ["up", "a", "b"]
         aIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "a"])
         bIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "b"])
         print (aIp, bIp)
@@ -183,7 +182,7 @@ spec = do
 
       it "allows connecting to VMs by their name" $ \ctx -> do
         copyFile (repoRoot </> "spec/domains/flake.nix") (workingDir ctx </> "flake.nix")
-        _ <- assertSuccess $ test ctx ["start", "server", "client"]
+        _ <- assertSuccess $ test ctx ["up", "server", "client"]
         result <- assertSuccess $ test ctx ["ssh", "client", "fetch-from-server"]
         result ^. #stdout `shouldBe` "hello from nginx"
 
@@ -192,7 +191,7 @@ spec = do
       stdout <- inTempDirectory $ do
         TestUtils.withContext NixVms.production $ \ctx -> do
           writeStandardFlake ctx Nothing
-          _ <- assertSuccess $ test ctx ["start", "server"]
+          _ <- assertSuccess $ test ctx ["up", "server"]
           files <- listDirectory "."
           files `shouldBe` []
           Cradle.StdoutRaw stdout <- Cradle.run $ Cradle.cmd "tree" & Cradle.setWorkingDir (ctx ^. #storageDir)

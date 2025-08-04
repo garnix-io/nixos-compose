@@ -3,14 +3,13 @@ module Options
     Options (..),
     Verbosity (..),
     Command (..),
-    StartOptions (..),
+    AllOrSomeVms (..),
     VmName (..),
   )
 where
 
 import Data.Aeson (FromJSONKey, ToJSONKey)
-import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
+import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text
 import Options.Applicative
 import StdLib
@@ -30,10 +29,10 @@ instance Parseable Options where
 
 data Command
   = List
-  | Start {verbosity :: Verbosity, options :: StartOptions}
+  | Up {verbosity :: Verbosity, vms :: AllOrSomeVms}
   | Ssh {vmName :: VmName, sshCommand :: [Text]}
   | Status {vmNames :: [VmName]}
-  | Stop {vmName :: VmName}
+  | Down {vms :: AllOrSomeVms}
   | Ip {vmName :: VmName}
   deriving stock (Show, Generic)
 
@@ -47,10 +46,10 @@ instance Parseable Command where
               (fullDesc <> progDesc "List all configured vms")
           )
           <> command
-            "start"
+            "up"
             ( info
-                (Start <$> parser <*> parser)
-                (fullDesc <> progDesc "Start a development vm")
+                (Up <$> parser <*> parser)
+                (fullDesc <> progDesc "Start development vms")
             )
           <> command
             "ssh"
@@ -65,10 +64,10 @@ instance Parseable Command where
                 (fullDesc <> progDesc "Show the status of running vms")
             )
           <> command
-            "stop"
+            "down"
             ( info
-                (Stop <$> parser)
-                (progDesc "Stop a running vm")
+                (Down <$> parser)
+                (progDesc "Stop running vms")
             )
           <> command
             "ip"
@@ -93,15 +92,18 @@ instance Parseable Verbosity where
           <> help "increase verbosity"
       )
 
-data StartOptions
-  = StartAll
-  | StartSome (NonEmpty VmName)
+data AllOrSomeVms
+  = All
+  | Some (NonEmpty VmName)
   deriving stock (Show, Generic)
 
-instance Parseable StartOptions where
+instance Parseable AllOrSomeVms where
   parser =
-    flag' StartAll (long "all")
-      <|> (StartSome . NonEmpty.fromList <$> some parser)
+    many (parser :: Parser VmName)
+      <&> ( \case
+              [] -> All
+              a : r -> Some (a :| r)
+          )
 
 newtype VmName = VmName {vmNameToText :: Text}
   deriving stock (Eq, Show, Ord)
