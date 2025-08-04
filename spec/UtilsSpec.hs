@@ -2,11 +2,11 @@ module UtilsSpec where
 
 import StdLib
 import Test.Hspec
-import Utils (isValidHostname)
+import Utils (hostnameToText, parseHostname)
 
 spec :: Spec
 spec = do
-  describe "isValidHostname" $ do
+  describe "parseHostname" $ do
     let validHostnames =
           [ "valid",
             "WITH-CAPS",
@@ -30,8 +30,11 @@ spec = do
             "with_underscore"
           ]
 
-    describe "returns true for valid hostnames" $ forM_ validHostnames $ \valid ->
-      it ("\"" <> cs valid <> "\"") $ isValidHostname valid `shouldBe` True
+    describe "returns Just Hostname for valid hostnames" $ forM_ validHostnames $ \valid ->
+      it ("\"" <> cs valid <> "\"") $ do
+        case parseHostname valid of
+          Nothing -> error "expected Just Hostname"
+          Just hostname -> hostnameToText hostname `shouldBe` valid
 
-    describe "returns false for invalid hostnames" $ forM_ invalidHostnames $ \invalid ->
-      it ("\"" <> cs invalid <> "\"") $ isValidHostname invalid `shouldBe` False
+    describe "returns Nothing for invalid hostnames" $ forM_ invalidHostnames $ \invalid ->
+      it ("\"" <> cs invalid <> "\"") $ parseHostname invalid `shouldBe` Nothing

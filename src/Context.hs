@@ -9,11 +9,11 @@ import Options (Verbosity, VmName)
 import StdLib
 import System.IO
 import System.Process
-import Utils (Port)
+import Utils (Hostname, Port)
 
 data TestState = TestState
   { registeredProcesses :: Map ProcessType ProcessHandle,
-    vmHostEntries :: Map (VmName, Text) IPv4
+    vmHostEntries :: Map (VmName, Hostname) IPv4
   }
   deriving stock (Generic)
 
@@ -45,7 +45,7 @@ data NixVms = NixVms
     buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
     runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
     sshIntoVm :: SshIntoVm,
-    updateVmHostsEntry :: Context -> VmName -> Text -> IPv4 -> IO ()
+    updateVmHostsEntry :: Context -> VmName -> Hostname -> IPv4 -> IO ()
   }
   deriving stock (Generic)
 

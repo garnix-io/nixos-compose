@@ -219,7 +219,6 @@ sshIntoVmImpl ctx vmName command = do
               command
             ]
 
-updateVmHostsEntryImpl :: Context -> VmName -> Text -> IPv4 -> IO ()
+updateVmHostsEntryImpl :: Context -> VmName -> Hostname -> IPv4 -> IO ()
 updateVmHostsEntryImpl ctx vmName hostname ip = do
-  when ('\'' `T.elem` hostname) $ error "updateVmHostsEntry: hostname must not contain \"'\""
-  sshIntoVmImpl ctx vmName $ "update-vm-hosts-entry '" <> hostname <> "' " <> IPv4.encode ip
+  sshIntoVmImpl ctx vmName $ "update-vm-hosts-entry " <> hostnameToText hostname <> " " <> IPv4.encode ip

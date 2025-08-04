@@ -12,6 +12,7 @@ import System.Directory (getSymbolicLinkTarget, listDirectory)
 import System.FilePath
 import Test.Hspec
 import TestUtils
+import Utils
 
 spec :: Spec
 spec = do
@@ -141,7 +142,7 @@ spec = do
                          ("c", IPv4.ipv4 10 0 0 4)
                        ]
                          & allPairs
-                         & map (\((fromName, _), (toName, toIP)) -> (VmName fromName, toName) ~> toIP)
+                         & map (\((fromName, _), (toName, toIP)) -> (VmName fromName, fromJust $ parseHostname toName) ~> toIP)
                          & mconcat
                      )
 
@@ -154,8 +155,8 @@ spec = do
           _ <- assertSuccess $ test ctx ["start", "--all"]
           testState <- readTestState ctx
           testState ^. #vmHostEntries
-            `shouldBe` ( (VmName "invalid?hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
-                           <> (VmName "valid-hostname", "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+            `shouldBe` ( (VmName "invalid?hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+                           <> (VmName "valid-hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
                        )
 
     it "prints a warning if an invalid hostname is used" $ do

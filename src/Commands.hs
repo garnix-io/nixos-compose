@@ -119,10 +119,9 @@ updateVmHostEntries :: Context -> IO ()
 updateVmHostEntries ctx = do
   runningVms <- Map.keys <$> listRunningVms ctx
   forM_ runningVms $ \targetVmName -> do
-    let targetHostname = vmNameToText targetVmName
-    if not $ isValidHostname targetHostname
-      then T.hPutStrLn stderr $ "WARN: \"" <> targetHostname <> "\" is not a valid hostname. It will not be added to /etc/hosts."
-      else do
+    case parseHostname $ vmNameToText targetVmName of
+      Nothing -> T.hPutStrLn stderr $ "WARN: \"" <> vmNameToText targetVmName <> "\" is not a valid hostname. It will not be added to /etc/hosts."
+      Just targetHostname -> do
         targetIp <- (^. #ip) <$> readVmState ctx targetVmName
         forM_ runningVms $ \updatingVmName -> do
           updateVmHostsEntry (nixVms ctx) ctx updatingVmName targetHostname targetIp
