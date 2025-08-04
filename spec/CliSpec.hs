@@ -9,9 +9,10 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), getPid, readVmState)
+import State (VmState (..), getPid, readState, readVmState)
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
+import System.IO qualified
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
 import TestUtils
@@ -98,7 +99,7 @@ spec = do
         let blockingBuildVmScript :: Context -> Context
             blockingBuildVmScript =
               (#nixVms . #buildVmScript)
-                %~ ( \_buildVmScript _ctx _vmName _ip -> do
+                .~ ( \_ctx _vmName _ip -> do
                        forever $ threadDelay 1_000_000
                    )
         it "locks the state of a vm when building the nixos config" $ do
@@ -130,7 +131,7 @@ spec = do
         let blockingRunVm :: Context -> Context
             blockingRunVm =
               (#nixVms . #runVm)
-                %~ ( \_runVm _ctx _verbosity _vmName _vmScript -> do
+                .~ ( \_ctx _verbosity _vmName _vmScript -> do
                        forever $ threadDelay 1_000_000
                    )
         withMockContext ["a"] $ \(blockingRunVm -> ctx) -> do
@@ -143,6 +144,25 @@ spec = do
               test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
               test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
               test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
+
+    describe "when nix evaluation fails" $ do
+      let failingBuildVmScript :: Context -> Context
+          failingBuildVmScript =
+            #nixVms
+              . #buildVmScript
+              .~ ( \_ctx _vmName _ip -> do
+                     T.hPutStrLn System.IO.stderr "test output"
+                     throwIO $ ExitFailure 42
+                 )
+      it "prints out the error message" $ do
+        withMockContext ["a"] $ \(failingBuildVmScript -> ctx) -> do
+          test ctx ["up", "a"] `shouldReturn` TestResult "" "Building NixOS config...\ntest output\n" (ExitFailure 42)
+
+      it "doesn't add a vm to the state" $ do
+        withMockContext ["a"] $ \(failingBuildVmScript -> ctx) -> do
+          test ctx ["up", "a"] `shouldReturn` TestResult "" "Building NixOS config...\ntest output\n" (ExitFailure 42)
+          (^. #vms) <$> readState ctx `shouldReturn` mempty
+          (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
   describe "down" $ do
     it "stops vms" $ do
@@ -186,6 +206,7 @@ spec = do
         _ <- assertSuccess $ test ctx ["up", "a"]
         (stdout <$> assertSuccess (test ctx ["down", "b"])) `shouldReturn` "b is not running, nothing to do\n"
 
+  describe "ssh" $ do
     let cases =
           [ (["true"], ExitSuccess),
             (["false"], ExitFailure 1),
