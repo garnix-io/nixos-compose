@@ -19,13 +19,13 @@ spec = do
   describe "`vde_switch`" $ do
     let assertVdeIsRunning ctx = do
           state <- readState ctx
-          exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: Int64) </> "exe"
+          exe <- getSymbolicLinkTarget $ "/proc" </> show (state ^. #vde . to fromJust . #pid :: ProcessID) </> "exe"
           takeFileName exe `shouldBe` "vde_switch"
 
     let assertVmIsRunning ctx vmName = do
           state <- readVmState ctx vmName
-          let pid :: Int = fromJust $ getPid state
-          comm <- readFile $ "/proc" </> show (pid :: Int) </> "comm"
+          let pid = fromJust $ getPid state
+          comm <- readFile $ "/proc" </> show (pid :: ProcessID) </> "comm"
           comm `shouldBe` "sleep\n"
 
     it "starts the switch when starting a vm" $ do

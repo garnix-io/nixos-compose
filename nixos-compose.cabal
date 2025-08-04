@@ -42,6 +42,7 @@ executable nixos-compose
       RankNTypes
       ScopedTypeVariables
       TupleSections
+      TypeSynonymInstances
       ViewPatterns
   ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:
@@ -112,6 +113,7 @@ test-suite spec
       RankNTypes
       ScopedTypeVariables
       TupleSections
+      TypeSynonymInstances
       ViewPatterns
   ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:

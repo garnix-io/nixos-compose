@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module StdLib
   ( (%~),
     (&),
@@ -13,8 +15,8 @@ module StdLib
     forM_,
     fromMaybe,
     Generic,
-    Int64,
     mapMaybe,
+    ProcessID,
     sort,
     Text,
     throwIO,
@@ -27,6 +29,7 @@ where
 import Control.Exception.Safe (throwIO)
 import Control.Lens (to, (%~), (&), (.~), (<&>), (?~), (^.), (^?))
 import Control.Monad (forM, forM_, unless, when)
+import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Generics.Labels ()
 import Data.Int (Int64)
 import Data.List (sort)
@@ -36,3 +39,12 @@ import Data.Text (Text)
 import GHC.Generics (Generic)
 import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
+import System.Posix (ProcessID)
+
+instance ToJSON ProcessID where
+  toJSON pid = toJSON (fromIntegral pid :: Int64)
+
+instance FromJSON ProcessID where
+  parseJSON value = do
+    pid :: Int64 <- parseJSON value
+    pure $ fromIntegral pid
