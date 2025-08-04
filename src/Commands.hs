@@ -68,7 +68,7 @@ up ctx verbosity upOptions = do
           registerProcess ctx (Vm vmName) ph
           pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
           pure (pid, port)
-        State.writeVmState ctx vmName (Running {pid = fromIntegral pid, port, ip})
+        State.writeVmState ctx vmName (Running {pid, port, ip})
         waitForVm ctx vmName
         T.hPutStrLn stderr "Done"
   updateVmHostEntries ctx
@@ -99,7 +99,7 @@ down ctx vmNames = do
           throwIO $ ExitFailure 1
         Running {pid} -> do
           T.putStrLn $ "stopping " <> vmNameToText vmName
-          signalProcess sigKILL $ fromIntegral pid
+          signalProcess sigKILL pid
           removeVm ctx vmName
 
 waitForVm :: Context -> VmName -> IO ()

@@ -108,13 +108,13 @@ data VmState
       }
   | Running
       { port :: Int,
-        pid :: Int,
+        pid :: ProcessID,
         ip :: IPv4
       }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
 
-getPid :: VmState -> Maybe Int
+getPid :: VmState -> Maybe ProcessID
 getPid = \case
   Starting {} -> Nothing
   Running {pid} -> Just pid
@@ -133,7 +133,7 @@ cleanUpVms ctx state = do
     isRunning vmName = \case
       Starting {} -> pure True
       Running {pid} -> do
-        isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: Int)
+        isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: ProcessID)
         unless isRunning $ do
           T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
           removeVmDir ctx vmName

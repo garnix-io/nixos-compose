@@ -9,7 +9,7 @@ import System.Posix (sigKILL, signalProcess)
 import System.Process
 
 newtype VdeState = VdeState
-  { pid :: Int64
+  { pid :: ProcessID
   }
   deriving stock (Generic, Show, Eq)
   deriving anyclass (ToJSON, FromJSON)
@@ -25,11 +25,11 @@ start ctx = do
         }
   registerProcess ctx VdeSwitch handle
   pid <- System.Process.getPid handle <&> fromMaybe (error "no pid")
-  pure $ VdeState {pid = fromIntegral pid}
+  pure $ VdeState {pid}
 
 stop :: Context -> VdeState -> IO ()
 stop ctx state = do
-  _ :: Either SomeException () <- try $ signalProcess sigKILL $ fromIntegral $ state ^. #pid
+  _ :: Either SomeException () <- try $ signalProcess sigKILL $ state ^. #pid
   removeDirectoryRecursive =<< getVdeCtlDir ctx
 
 getVdeCtlDir :: Context -> IO FilePath

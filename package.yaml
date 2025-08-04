@@ -52,6 +52,7 @@ default-extensions:
   - RankNTypes
   - ScopedTypeVariables
   - TupleSections
+  - TypeSynonymInstances
   - ViewPatterns
 
 dependencies:
