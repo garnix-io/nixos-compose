@@ -1,6 +1,9 @@
 Missing: COMMAND
 
-Usage: nixos-compose COMMAND
+Usage: nixos-compose [--version] COMMAND
+
+Available options:
+  --version                Show version (unknown) and exit
 
 Available commands:
   list                     List all configured vms

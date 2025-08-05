@@ -13,6 +13,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text
 import Options.Applicative
 import StdLib
+import Version qualified
 
 parserInfo :: ParserInfo Options
 parserInfo =
@@ -25,7 +26,13 @@ newtype Options = Options Command
   deriving stock (Show)
 
 instance Parseable Options where
-  parser = Options <$> parser
+  parser =
+    version
+      <*> (Options <$> parser)
+
+version :: Parser (a -> a)
+version =
+  infoOption (cs Version.version) (long "version" <> help ("Show version (" <> cs Version.version <> ") and exit"))
 
 data Command
   = List

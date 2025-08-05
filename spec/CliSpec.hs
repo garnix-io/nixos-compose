@@ -19,6 +19,16 @@ spec = do
         result <- test ctx []
         pure $ defaultGolden "stderr" (cs (result ^. #stderr))
 
+    it "has a --version flag" $ do
+      withMockContext [] $ \ctx -> do
+        test ctx ["--version"]
+          `shouldReturn` TestResult "unknown\n" "" ExitSuccess
+
+    it "ignores other options and flags when --version is given" $ do
+      withMockContext [] $ \ctx -> do
+        test ctx ["--version", "list"]
+          `shouldReturn` TestResult "unknown\n" "" ExitSuccess
+
   describe "status" $ do
     context "without vm arguments" $ do
       it "lists the status of all vms" $ do

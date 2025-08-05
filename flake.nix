@@ -32,6 +32,7 @@
           configureFlags = [
             "--ghc-option=-Werror"
             "--ghc-option=-O2"
+            "--ghc-option=-D__NIXOS_COMPOSE_VERSION__=${self.shortRev or self.dirtyShortRev}"
           ];
         });
         runtimeDeps = [ pkgs.openssh pkgs.nix pkgs.vde2 ];
