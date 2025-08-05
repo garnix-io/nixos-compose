@@ -157,6 +157,3 @@ waitFor action = do
               inner startTime
             else throwIO e
         Right a -> pure a
-
-(~>) :: k -> v -> Map.Map k v
-(~>) = Map.singleton

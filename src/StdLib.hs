@@ -9,6 +9,7 @@ module StdLib
     (?~),
     (^.),
     (^?),
+    (~>),
     cs,
     ExitCode (..),
     forM,
@@ -33,6 +34,7 @@ import Data.Aeson (FromJSON (..), ToJSON (..))
 import Data.Generics.Labels ()
 import Data.Int (Int64)
 import Data.List (sort)
+import Data.Map qualified as Map
 import Data.Maybe (fromMaybe, mapMaybe)
 import Data.String.Conversions (cs)
 import Data.Text (Text)
@@ -48,3 +50,6 @@ instance FromJSON ProcessID where
   parseJSON value = do
     pid :: Int64 <- parseJSON value
     pure $ fromIntegral pid
+
+(~>) :: k -> v -> Map.Map k v
+(~>) = Map.singleton
