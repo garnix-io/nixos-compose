@@ -79,7 +79,7 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
         output <- assertSuccess $ test ctx ["ip", "a"]
-        output ^. #stdout `shouldBe` "10.0.0.2\n"
+        output ^. #stdout `shouldBe` "10.0.0.3\n"
 
     it "handles non-running vms gracefully" $ do
       withMockContext ["a"] $ \ctx -> do
@@ -100,34 +100,34 @@ spec = do
         _ <- assertSuccess $ test ctx ["up", "b"]
         _ <- assertSuccess $ test ctx ["up", "c"]
         output <- assertSuccess $ test ctx ["ip", "a"]
-        output ^. #stdout `shouldBe` "10.0.0.2\n"
-        output <- assertSuccess $ test ctx ["ip", "b"]
         output ^. #stdout `shouldBe` "10.0.0.3\n"
-        output <- assertSuccess $ test ctx ["ip", "c"]
+        output <- assertSuccess $ test ctx ["ip", "b"]
         output ^. #stdout `shouldBe` "10.0.0.4\n"
+        output <- assertSuccess $ test ctx ["ip", "c"]
+        output ^. #stdout `shouldBe` "10.0.0.5\n"
 
     it "tries not to re-assign vms" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
-        stdout <$> assertSuccess (test ctx ["ip", "a"]) `shouldReturn` "10.0.0.2\n"
-        _ <- assertSuccess $ test ctx ["up", "b"]
-        stdout <$> assertSuccess (test ctx ["ip", "b"]) `shouldReturn` "10.0.0.3\n"
-        _ <- assertSuccess $ test ctx ["down", "b"]
+        stdout <$> assertSuccess (test ctx ["ip", "a"]) `shouldReturn` "10.0.0.3\n"
         _ <- assertSuccess $ test ctx ["up", "b"]
         stdout <$> assertSuccess (test ctx ["ip", "b"]) `shouldReturn` "10.0.0.4\n"
         _ <- assertSuccess $ test ctx ["down", "b"]
+        _ <- assertSuccess $ test ctx ["up", "b"]
+        stdout <$> assertSuccess (test ctx ["ip", "b"]) `shouldReturn` "10.0.0.5\n"
+        _ <- assertSuccess $ test ctx ["down", "b"]
         _ <- assertSuccess $ test ctx ["up", "c"]
-        stdout <$> assertSuccess (test ctx ["ip", "c"]) `shouldReturn` "10.0.0.5\n"
+        stdout <$> assertSuccess (test ctx ["ip", "c"]) `shouldReturn` "10.0.0.6\n"
 
     it "wraps around and doesn't assign ips that are in use" $ do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
-        ips <- replicateM 251 $ do
+        ips <- replicateM 250 $ do
           getNextIp ctx
-        ips `shouldBe` [IPv4.fromOctets 10 0 0 3 .. IPv4.fromOctets 10 0 0 253]
+        ips `shouldBe` [IPv4.fromOctets 10 0 0 4 .. IPv4.fromOctets 10 0 0 253]
         ips <- replicateM 3 $ do
           IPv4.encode <$> getNextIp ctx
-        ips `shouldBe` ["10.0.0.254", "10.0.0.3", "10.0.0.4"]
+        ips `shouldBe` ["10.0.0.254", "10.0.0.4", "10.0.0.5"]
 
   describe "hostnames" $ do
     it "registers hostname mappings amongst all VMs" $ do
@@ -137,9 +137,9 @@ spec = do
         _ <- assertSuccess $ test ctx ["up"]
         testState <- readTestState ctx
         testState ^. #vmHostEntries
-          `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 2),
-                         ("b", IPv4.ipv4 10 0 0 3),
-                         ("c", IPv4.ipv4 10 0 0 4)
+          `shouldBe` ( [ ("a", IPv4.ipv4 10 0 0 3),
+                         ("b", IPv4.ipv4 10 0 0 4),
+                         ("c", IPv4.ipv4 10 0 0 5)
                        ]
                          & allPairs
                          & map (\((fromName, _), (toName, toIP)) -> (VmName fromName, fromJust $ parseHostname toName) ~> toIP)
@@ -155,8 +155,8 @@ spec = do
           _ <- assertSuccess $ test ctx ["up"]
           testState <- readTestState ctx
           testState ^. #vmHostEntries
-            `shouldBe` ( (VmName "invalid?hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
-                           <> (VmName "valid-hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 2
+            `shouldBe` ( (VmName "invalid?hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 3
+                           <> (VmName "valid-hostname", fromJust $ parseHostname "valid-hostname") ~> IPv4.ipv4 10 0 0 3
                        )
 
     it "prints a warning if an invalid hostname is used" $ do

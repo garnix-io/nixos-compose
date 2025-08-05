@@ -5,6 +5,7 @@ module Commands
     ssh,
     status,
     Commands.ip,
+    tap,
   )
 where
 
@@ -16,7 +17,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Net.IPv4 qualified as IPv4
-import Options (AllOrSomeVms (..), Verbosity, VmName (..))
+import Options (AllOrSomeVms (..), DryRunFlag, Verbosity, VmName (..))
 import State
 import StdLib
 import System.Directory (doesFileExist)
@@ -24,6 +25,7 @@ import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
 import Utils
+import Vde qualified
 import Prelude
 
 list :: Context -> IO ()
@@ -159,3 +161,13 @@ updateVmHostEntries ctx = do
         targetIp <- (^. #ip) <$> readVmState ctx targetVmName
         forM_ runningVms $ \updatingVmName -> do
           updateVmHostsEntry (nixVms ctx) ctx updatingVmName targetHostname targetIp
+
+tap :: Context -> DryRunFlag -> IO ()
+tap ctx dryRunFlag = do
+  state <- readState ctx
+  case state ^. #vde of
+    Nothing -> do
+      T.hPutStrLn stderr "Cannot start `tap` device with no VMs running"
+      throwIO $ ExitFailure 1
+    Just _ -> do
+      Vde.setupTapDevice ctx dryRunFlag hostIp
