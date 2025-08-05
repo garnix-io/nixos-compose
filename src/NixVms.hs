@@ -184,16 +184,16 @@ runVmImpl ctx verbosity vmName vmExecutable = do
     DefaultVerbosity -> pure ()
     Verbose -> do
       (Just stdout, Just stderr) <- pure (stdout, stderr)
-      _ <- forkIO $ streamHandles "qemu" stdout System.IO.stdout
-      _ <- forkIO $ streamHandles "qemu" stderr System.IO.stderr
+      _ <- forkIO $ streamHandles vmName stdout System.IO.stdout
+      _ <- forkIO $ streamHandles vmName stderr System.IO.stderr
       pure ()
   pure ph
 
-streamHandles :: Text -> Handle -> Handle -> IO ()
-streamHandles prefix input output = do
+streamHandles :: VmName -> Handle -> Handle -> IO ()
+streamHandles vm input output = do
   chunk <- T.hGetLine input
-  T.hPutStrLn output $ prefix <> "> " <> stripAnsiEscapeCodes chunk
-  streamHandles prefix input output
+  T.hPutStrLn output $ vmNameToText vm <> "> " <> stripAnsiEscapeCodes chunk
+  streamHandles vm input output
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
 sshIntoVmImpl ctx vmName command = do
