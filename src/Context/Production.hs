@@ -8,7 +8,7 @@ import System.IO
 mkContext :: IO Context
 mkContext = do
   workingDir <- getCurrentDirectory
-  storageDir <- getXdgDirectory XdgData "nixos-compose"
+  storageDir <- getXdgDirectory XdgState "nixos-compose"
   pure $
     Context
       { testState = Nothing,
