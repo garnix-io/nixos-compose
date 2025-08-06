@@ -68,7 +68,6 @@ executable nixos-compose
     , strip-ansi-escape
     , text
     , unix
-    , xdg-basedir
   default-language: Haskell2010
 
 test-suite spec
@@ -150,5 +149,4 @@ test-suite spec
     , temporary
     , text
     , unix
-    , xdg-basedir
   default-language: Haskell2010
