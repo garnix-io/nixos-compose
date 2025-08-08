@@ -3,6 +3,7 @@ module Logging where
 import Control.Exception.Safe (throwIO)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import StdLib
 import System.IO (stderr, stdout)
 
@@ -30,3 +31,15 @@ exitWith outputs exitCode = do
             else message <> "\n"
     T.hPutStr handle line
   throwIO exitCode
+
+impossible :: (HasCallStack) => Text -> IO a
+impossible message = do
+  abort
+    ( T.unlines
+        [ "nixos-compose encountered an unexpected error: " <> message,
+          "Please, consider reporting this as a bug here: https://github.com/garnix-io/nixos-compose/issues",
+          "",
+          "callstack:",
+          cs (prettyCallStack callStack)
+        ]
+    )

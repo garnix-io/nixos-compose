@@ -31,7 +31,9 @@ start ctx = do
         { std_in = UseHandle stdinPipe -- `CreatePipe :: StdStream` doesn't work reliably
         }
   registerProcess ctx VdeSwitch handle
-  pid <- System.Process.getPid handle <&> fromMaybe (error "no pid")
+  pid <-
+    System.Process.getPid handle
+      >>= maybe (impossible "vde_switch process has no pid") pure
   pure $ VdeState {pid}
 
 stop :: Context -> VdeState -> IO ()

@@ -9,6 +9,7 @@ import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Network.Socket.Free (getFreePort)
@@ -51,7 +52,7 @@ listVmsImpl ctx = do
                  ]
           )
   case Aeson.eitherDecode' (cs json) of
-    Left err -> error err
+    Left err -> impossible $ cs err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
 buildVmScriptImpl :: Context -> VmName -> IPv4 -> IO (FilePath, Port)
@@ -71,9 +72,9 @@ buildVmScriptImpl ctx vmName ip = do
                    "nixConfig: (nixConfig.extendModules { modules = [(" <> moduleExtensions <> ")]; }).config.system.build.vm.drvPath"
                  ]
           )
-  let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
-        Right t -> t
-        Left err -> error err
+  drvPath :: Text <- case Aeson.eitherDecode' $ cs drvPathJson of
+    Right t -> pure t
+    Left err -> impossible $ cs err
 
   (Cradle.StdoutTrimmed outPath) <-
     runWithErrorHandling $
@@ -91,7 +92,7 @@ buildVmScriptImpl ctx vmName ip = do
   files <- listDirectory (cs outPath </> "bin")
   case files of
     [file] -> pure (cs outPath </> "bin" </> file, port)
-    files -> error $ "expected one vm script: " <> show files
+    files -> impossible $ "expected one vm script: " <> cs (show files)
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -196,7 +197,7 @@ sshIntoVmImpl ctx vmName command = do
   vmState <- State.readVmState ctx vmName
   case vmState of
     Starting {} -> do
-      error "cannot ssh into a starting vm"
+      abort "cannot ssh into a starting vm"
     Running {port} -> do
       Cradle.run $
         Cradle.cmd "ssh"

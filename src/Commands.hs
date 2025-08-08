@@ -54,7 +54,7 @@ up ctx verbosity upOptions = do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
           exists <- doesFileExist vmKeyPath
           when exists $ do
-            error $ vmKeyPath <> " already exists"
+            impossible $ cs vmKeyPath <> " already exists"
           () <-
             runWithErrorHandling $
               Cradle.cmd "ssh-keygen"
@@ -65,7 +65,9 @@ up ctx verbosity upOptions = do
           T.hPutStrLn stderr "Starting VM..."
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
-          pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
+          pid <-
+            System.Process.getPid ph
+              >>= maybe (impossible "qemu process has no pid") pure
           pure (ph, pid, port)
         State.writeVmState ctx vmName (Running {pid, port, ip})
         waitForVm ctx vmName ph
