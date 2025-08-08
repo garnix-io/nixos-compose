@@ -34,6 +34,6 @@ stop ctx state = do
 
 getVdeCtlDir :: Context -> IO FilePath
 getVdeCtlDir ctx = do
-  let ctlDir = storageDir ctx </> "vde1.ctl"
+  let ctlDir = storageDir ctx </> "vde_switch.ctl"
   createDirectoryIfMissing True ctlDir
   pure ctlDir
