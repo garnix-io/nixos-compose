@@ -19,14 +19,12 @@ module StdLib
     ProcessID,
     sort,
     Text,
-    throwIO,
     to,
     unless,
     when,
   )
 where
 
-import Control.Exception.Safe (throwIO)
 import Control.Lens (to, (%~), (&), (.~), (<&>), (?~), (^.), (^?))
 import Control.Monad (forM, forM_, unless, when)
 import Data.Aeson (FromJSON (..), ToJSON (..))
