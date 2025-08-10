@@ -195,10 +195,10 @@ getVmFilePath ctx vmName path = do
 -- * IPs
 
 hostIp :: IPv4
-hostIp = IPv4.fromOctets 10 0 0 2
+hostIp = IPv4.fromOctets 10 0 0 1
 
 ipRange :: (IPv4, IPv4)
-ipRange = (IPv4.fromOctets 10 0 0 3, IPv4.fromOctets 10 0 0 254)
+ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)
 
 getNextIp :: Context -> IO IPv4
 getNextIp ctx = modifyState ctx $ \state -> do

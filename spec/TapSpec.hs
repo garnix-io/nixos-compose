@@ -27,7 +27,7 @@ spec = do
           Paths {vde_plug2tap, ip, vdeCtlDir} <- getPaths ctx
           let expected =
                 [ [sudo, vde_plug2tap, "--daemon", "--sock", vdeCtlDir, "nixos-compose0"],
-                  [sudo, ip, "addr", "add", "10.0.0.2/24", "dev", "nixos-compose0"],
+                  [sudo, ip, "addr", "add", "10.0.0.1/24", "dev", "nixos-compose0"],
                   [sudo, ip, "link", "set", "nixos-compose0", "up"]
                 ]
           getMockSudoCalls `shouldReturn` unlines (fmap unwords expected)
@@ -42,7 +42,7 @@ spec = do
         Paths {vde_plug2tap, ip, vdeCtlDir} <- getPaths ctx
         let expectedStdout =
               [ [vde_plug2tap, "--daemon", "--sock", vdeCtlDir, "nixos-compose0"],
-                [ip, "addr", "add", "10.0.0.2/24", "dev", "nixos-compose0"],
+                [ip, "addr", "add", "10.0.0.1/24", "dev", "nixos-compose0"],
                 [ip, "link", "set", "nixos-compose0", "up"]
               ]
         test ctx ["tap"]
@@ -68,7 +68,7 @@ spec = do
           Paths {vde_plug2tap, ip, vdeCtlDir} <- getPaths ctx
           let expectedStderr =
                 [ [vde_plug2tap, "--daemon", "--sock", vdeCtlDir, "nixos-compose0"],
-                  [ip, "addr", "add", "10.0.0.2/24", "dev", "nixos-compose0"],
+                  [ip, "addr", "add", "10.0.0.1/24", "dev", "nixos-compose0"],
                   [ip, "link", "set", "nixos-compose0", "up"]
                 ]
           result <- test ctx ["tap", "--dry-run"]

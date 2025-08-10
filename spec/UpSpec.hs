@@ -45,10 +45,10 @@ spec = do
               test ctx ["up", "a"]
             waitFor $ do
               vmState <- readVmState ctx "a"
-              vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 3}
+              vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
               test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
               test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
-              test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.3\n" "" ExitSuccess
+              test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
       it "handles attempts to stop building vms gracefully" $ do
         withMockContext ["a"] $ \(blockingBuildVmScript -> ctx) -> do
@@ -76,10 +76,10 @@ spec = do
             test ctx ["up", "a"]
           waitFor $ do
             vmState <- readVmState ctx "a"
-            vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 3}
+            vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
             test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
             test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
-            test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.3\n" "" ExitSuccess
+            test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
   describe "when nix evaluation fails" $ do
     let failingBuildVmScript :: Context -> Context
