@@ -21,6 +21,7 @@ executable nixos-compose
       StdLib
       Utils
       Vde
+      Version
       Paths_nixos_compose
   hs-source-dirs:
       src
@@ -77,6 +78,7 @@ test-suite spec
       IntegrationSpec
       NetworkingSpec
       SpecHook
+      TapSpec
       TestUtils
       UpSpec
       UtilsSpec
@@ -91,6 +93,7 @@ test-suite spec
       StdLib
       Utils
       Vde
+      Version
       Paths_nixos_compose
   hs-source-dirs:
       spec
