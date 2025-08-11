@@ -80,6 +80,14 @@ spec = do
               "Would run the following commands:\n\n"
               ExitSuccess
 
+    it "bug" $ do
+      withMockContext ["server"] $ \ctx -> do
+        withMockSudo $ \_ -> do
+          _ <- assertSuccess $ test ctx ["up", "server"]
+          stopProcess ctx (Vm "server")
+          test ctx ["tap", "--dry-run"]
+            `shouldReturn` TestResult "" "WARN: cannot find process for vm: server\nCannot start `tap` device with no VMs running\n" (ExitFailure 1)
+
 withMockSudo :: ((FilePath, IO String) -> IO a) -> IO a
 withMockSudo action = do
   withSystemTempDirectory "mock-sudo" $ \mockSudoDir -> do
