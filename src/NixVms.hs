@@ -106,6 +106,7 @@ getModuleExtensions ctx vmName port ip = do
     cs
       [i|
         { pkgs, ... }: {
+          console.enable = false;
           services.openssh.enable = true;
           users.users.vmuser = {
             isNormalUser = true;
