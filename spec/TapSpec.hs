@@ -35,7 +35,8 @@ spec = do
     it "prints a nice message when `sudo` is not in the `$PATH`" $ do
       sudo <- which "sudo"
       case sudo of
-        Just _ -> expectationFailure "this test relies on `sudo` *not* being in the path"
+        Just _ -> do
+          pendingWith "this test relies on `sudo` *not* being in the path"
         Nothing -> pure ()
       withMockContext ["server"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "server"]
@@ -103,7 +104,7 @@ withMockSudo action = do
     Cradle.run_ $ Cradle.cmd "chmod" & Cradle.addArgs ["+x", mockSudoPath]
     pathWithMockSudo <-
       getEnv "PATH"
-        <&> (<> (":" <> mockSudoBinDir))
+        <&> ((mockSudoBinDir <> ":") <>)
     withModifiedEnvironment [("PATH", pathWithMockSudo)] $ do
       let getCalls = do
             exists <- doesFileExist (mockSudoDir </> "calls")
