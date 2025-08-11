@@ -49,16 +49,16 @@ instance Parseable Command where
   parser =
     hsubparser
       ( command
-          "list"
+          "up"
           ( info
-              (pure List)
-              (fullDesc <> progDesc "List all configured vms")
+              (Up <$> parser <*> parser)
+              (fullDesc <> progDesc "Start development vms")
           )
           <> command
-            "up"
+            "down"
             ( info
-                (Up <$> parser <*> parser)
-                (fullDesc <> progDesc "Start development vms")
+                (Down <$> parser)
+                (progDesc "Stop running vms")
             )
           <> command
             "ssh"
@@ -73,10 +73,10 @@ instance Parseable Command where
                 (fullDesc <> progDesc "Show the status of running vms")
             )
           <> command
-            "down"
+            "list"
             ( info
-                (Down <$> parser)
-                (progDesc "Stop running vms")
+                (pure List)
+                (fullDesc <> progDesc "List all configured vms")
             )
           <> command
             "ip"
