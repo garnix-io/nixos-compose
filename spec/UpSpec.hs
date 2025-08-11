@@ -8,10 +8,10 @@ import Cradle
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
-import Logging
 import Net.IPv4 qualified as IPv4
 import State (VmState (..), getVmFilePath, readState, readVmState)
 import StdLib
+import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Test.Hspec
 import TestUtils
@@ -86,7 +86,9 @@ spec = do
         failingBuildVmScript =
           #nixVms
             . #buildVmScript
-            .~ ( \_ctx _vmName _ip -> exitWith [ToStderr "test output"] $ ExitFailure 42
+            .~ ( \_ctx _vmName _ip -> do
+                   T.hPutStrLn System.IO.stderr "test output"
+                   exitWith $ ExitFailure 42
                )
     it "prints out the error message" $ do
       withMockContext ["a"] $ \(failingBuildVmScript -> ctx) -> do

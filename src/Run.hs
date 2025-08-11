@@ -10,7 +10,6 @@ import Options
 import Options.Applicative
 import StdLib
 import System.Environment (getArgs)
-import System.Exit (exitWith)
 import System.IO (hPrint, stderr)
 
 runInProduction :: IO ()

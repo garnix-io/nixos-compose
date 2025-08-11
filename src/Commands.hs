@@ -86,7 +86,9 @@ down ctx vmNames = do
     All -> do
       all <- listRunningVms ctx
       case Map.keys all of
-        [] -> exitWith [ToStderr "no vms running, nothing to do"] ExitSuccess
+        [] -> do
+          T.hPutStrLn stderr "no vms running, nothing to do"
+          exitSuccess
         a : r -> pure $ a :| r
   state <- readState ctx
   forM_ toStop $ \vmName -> do
@@ -111,9 +113,11 @@ waitForVm ctx vmName ph = do
         Just vmScriptExitCode -> do
           stdout <- getVmFilePath ctx vmName "stdout.log" >>= T.readFile
           stderr <- getVmFilePath ctx vmName "stderr.log" >>= T.readFile
-          exitWith [ToStderr (T.unlines ["VM failed to start:\n", stdout, stderr])] $ case vmScriptExitCode of
-            ExitSuccess -> ExitFailure 1
-            vmScriptExitCode -> vmScriptExitCode
+          do
+            T.hPutStr System.IO.stderr (T.unlines ["VM failed to start:\n", stdout, stderr])
+            exitWith $ case vmScriptExitCode of
+              ExitSuccess -> ExitFailure 1
+              vmScriptExitCode -> vmScriptExitCode
 
 ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
