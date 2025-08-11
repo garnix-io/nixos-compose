@@ -1,12 +1,15 @@
 module CliSpec where
 
 import Context
+import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.String.Interpolate (i)
 import Data.String.Interpolate.Util (unindent)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Net.IPv4 qualified as IPv4
 import State (getPid, readVmState)
+import State qualified
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
 import Test.Hspec
@@ -54,7 +57,7 @@ spec = do
       it "prints a nice message when no vms are configured" $ do
         withMockContext [] $ \ctx -> do
           result <- assertSuccess $ test ctx ["status"]
-          result ^. #stdout `shouldBe` "no vms configured\n"
+          result ^. #stdout `shouldBe` "no vms configured, no vms running\n"
 
     it "accepts multiple vm names" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
@@ -78,6 +81,25 @@ spec = do
             "WARN: cannot find process for vm: a\n"
             ExitSuccess
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
+
+    describe "running vms from other flake files" $ do
+      let fakeVmState =
+            State.Running
+              { port = 8080,
+                pid = 42,
+                ip = IPv4.fromOctets 10 0 0 42
+              }
+      it "prints running vms when there's no configured vms in the local flake file" $ do
+        withMockContext [] $ \ctx -> do
+          State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" fakeVmState))
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "other: running\n"
+
+      it "prints running vms from other directories with configured vms" $ do
+        withMockContext ["a"] $ \ctx -> do
+          State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" fakeVmState))
+          result <- assertSuccess $ test ctx ["status"]
+          result ^. #stdout `shouldBe` "a: not running\nother: running\n"
 
   describe "list" $ do
     it "lists all configured vms" $ do

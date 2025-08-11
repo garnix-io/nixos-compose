@@ -13,6 +13,7 @@ import Context
 import Context.Utils
 import Control.Exception.Safe (onException, throwIO)
 import Cradle
+import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Text qualified as T
@@ -127,12 +128,12 @@ status :: Context -> [VmName] -> IO ()
 status ctx args = do
   configuredVms <- listVms (nixVms ctx) ctx
   runningVms <- State.listRunningVms ctx
-  output ctx $ T.intercalate "\n" $ case configuredVms of
-    [] -> ["no vms configured"]
-    configuredVms -> do
-      let vmNames = case args of
-            [] -> configuredVms
-            vmNames -> vmNames
+  let listedVms = case args of
+        [] -> nubOrd (configuredVms <> Map.keys runningVms)
+        args -> args
+  output ctx $ T.intercalate "\n" $ case listedVms of
+    [] -> ["no vms configured, no vms running"]
+    vmNames -> do
       flip map vmNames $ \vmName ->
         vmNameToText vmName
           <> ": "
