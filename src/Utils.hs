@@ -7,6 +7,7 @@ module Utils
     Hostname,
     parseHostname,
     hostnameToText,
+    which,
   )
 where
 
@@ -70,3 +71,14 @@ parseHostname t =
     numeric = ['0' .. '9']
     alphaNumeric = alpha <> numeric
     allValid = alphaNumeric <> ['.', '-']
+
+which :: FilePath -> IO (Maybe FilePath)
+which executable = do
+  (exitCode, StdoutTrimmed path) <-
+    run $
+      cmd "which"
+        & addArgs [executable]
+        & silenceStderr
+  pure $ case exitCode of
+    ExitSuccess -> Just $ cs path
+    ExitFailure _ -> Nothing

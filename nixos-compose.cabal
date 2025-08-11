@@ -78,6 +78,7 @@ test-suite spec
       IntegrationSpec
       NetworkingSpec
       SpecHook
+      TapSpec
       TestUtils
       UpSpec
       UtilsSpec

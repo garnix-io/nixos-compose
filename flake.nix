@@ -8,8 +8,12 @@
       flake-utils.follows = "flake-utils";
     };
   };
-  outputs = { self, nixpkgs, flake-utils, cradle }:
-    flake-utils.lib.eachDefaultSystem (system:
+  inputs.garnix-lib = {
+    url = "github:garnix-io/garnix-lib";
+    inputs.nixpkgs.follows = "nixpkgs";
+  };
+  outputs = { self, nixpkgs, flake-utils, cradle, garnix-lib }:
+    (flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import "${nixpkgs}" { inherit system; config.allowBroken = true; };
         lib = pkgs.lib;
@@ -35,8 +39,20 @@
             "--ghc-option=-D__NIXOS_COMPOSE_VERSION__=${self.shortRev or self.dirtyShortRev}"
           ];
         });
-        runtimeDeps = [ pkgs.openssh pkgs.nix pkgs.vde2 ];
-        testDeps = [ pkgs.coreutils pkgs.bash pkgs.tree pkgs.ps ];
+        runtimeDeps = [
+          pkgs.iproute2
+          pkgs.nix
+          pkgs.openssh
+          pkgs.vde2
+          pkgs.which
+        ];
+        testDeps = [
+          pkgs.bash
+          pkgs.coreutils
+          pkgs.ps
+          pkgs.python3
+          pkgs.tree
+        ];
         ghcWithDeps =
           (
             let
@@ -123,6 +139,7 @@
                 runtimeDeps ++
                 testDeps;
                 text = ''
+                  rm dist-newstyle -rf
                   hpack
                   ghcid \
                     --command "cabal repl test:spec --ghc-options=-fdefer-typed-holes" \
@@ -154,5 +171,23 @@
           };
         };
       }
-    );
+    )) //
+    {
+      nixosConfigurations."test-vm" = nixpkgs.lib.nixosSystem {
+        modules = [
+          garnix-lib.nixosModules.garnix
+          ({ pkgs, ... }: {
+            networking.hostName = "test-vm";
+            nixpkgs.hostPlatform = "x86_64-linux";
+            system.stateVersion = "25.05";
+            garnix.server.enable = true;
+            networking.firewall.allowedTCPPorts = [ 80 ];
+            services.nginx = {
+              enable = true;
+              virtualHosts.default.locations."/".return = "200 'hello from test-vm\\n'";
+            };
+          })
+        ];
+      };
+    };
 }

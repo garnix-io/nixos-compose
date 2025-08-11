@@ -2,6 +2,7 @@ module Options
   ( parserInfo,
     Options (..),
     Verbosity (..),
+    DryRunFlag (..),
     Command (..),
     AllOrSomeVms (..),
     VmName (..),
@@ -41,6 +42,7 @@ data Command
   | Status {vmNames :: [VmName]}
   | Down {vms :: AllOrSomeVms}
   | Ip {vmName :: VmName}
+  | Tap {dryRun :: DryRunFlag}
   deriving stock (Show, Generic)
 
 instance Parseable Command where
@@ -82,6 +84,12 @@ instance Parseable Command where
                 (Ip <$> parser)
                 (progDesc "Print the ip address of a vm (in the virtual network)")
             )
+          <> command
+            "tap"
+            ( info
+                (Tap <$> parser)
+                (progDesc "Set up a tap device, to allow network access to vms from the host (uses `sudo`)")
+            )
       )
 
 data Verbosity
@@ -98,6 +106,14 @@ instance Parseable Verbosity where
           <> short 'v'
           <> help "increase verbosity"
       )
+
+data DryRunFlag
+  = NoDryRun
+  | DryRun
+  deriving stock (Show)
+
+instance Parseable DryRunFlag where
+  parser = flag NoDryRun DryRun (long "dry-run" <> help "Just print what would be done")
 
 data AllOrSomeVms
   = All

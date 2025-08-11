@@ -12,3 +12,5 @@ Available commands:
   status                   Show the status of running vms
   down                     Stop running vms
   ip                       Print the ip address of a vm (in the virtual network)
+  tap                      Set up a tap device, to allow network access to vms
+                           from the host (uses `sudo`)

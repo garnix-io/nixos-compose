@@ -18,6 +18,7 @@ module State
     listRunningVms,
 
     -- * IPs
+    hostIp,
     getNextIp,
   )
 where
@@ -192,6 +193,9 @@ getVmFilePath ctx vmName path = do
   pure $ dir </> path
 
 -- * IPs
+
+hostIp :: IPv4
+hostIp = IPv4.fromOctets 10 0 0 1
 
 ipRange :: (IPv4, IPv4)
 ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)
