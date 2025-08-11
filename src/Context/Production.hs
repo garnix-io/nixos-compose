@@ -2,14 +2,13 @@ module Context.Production where
 
 import Context
 import NixVms qualified
-import System.Directory (getCurrentDirectory)
-import System.Environment.XDG.BaseDir qualified as XDG
+import System.Directory (XdgDirectory (..), getCurrentDirectory, getXdgDirectory)
 import System.IO
 
 mkContext :: IO Context
 mkContext = do
   workingDir <- getCurrentDirectory
-  storageDir <- XDG.getUserDataDir "nixos-compose"
+  storageDir <- getXdgDirectory XdgState "nixos-compose"
   pure $
     Context
       { testState = Nothing,

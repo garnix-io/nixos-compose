@@ -76,4 +76,3 @@ dependencies:
   - strip-ansi-escape
   - text
   - unix
-  - xdg-basedir
