@@ -120,7 +120,7 @@ spec = do
 
     it "prints a nice message when no vm names are given and no vms are running" $ do
       withMockContext ["a", "b"] $ \ctx -> do
-        (stdout <$> assertSuccess (test ctx ["down"])) `shouldReturn` "no vms running, nothing to do\n"
+        (stderr <$> assertSuccess (test ctx ["down"])) `shouldReturn` "no vms running, nothing to do\n"
 
     it "prints a nice message when the specified vms are not running" $ do
       withMockContext ["a", "b"] $ \ctx -> do
