@@ -5,12 +5,14 @@ import Control.Exception.Safe (SomeException, try)
 import Cradle qualified
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options
 import StdLib
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
+import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process
 import Utils (which)
@@ -74,29 +76,27 @@ setupTapDevice ctx dryRunFlag ipAddress = do
   sudo <- which "sudo"
   case sudo of
     Nothing -> do
-      exitWith
-        [ ToStderr
-            ( T.unlines
-                [ "`sudo` not found in the $PATH, cannot create `tap` device.",
-                  "You can run the following commands with elevated privileges to create it manually:",
-                  ""
-                ]
-            ),
-          ToStdout (T.unlines $ fmap T.unwords commands)
-        ]
-        (ExitFailure 1)
+      T.hPutStr
+        System.IO.stderr
+        ( T.unlines
+            [ "`sudo` not found in the $PATH, cannot create `tap` device.",
+              "You can run the following commands with elevated privileges to create it manually:",
+              ""
+            ]
+        )
+      T.putStr (T.unlines $ fmap T.unwords commands)
+      exitWith $ ExitFailure 1
     Just _ -> case dryRunFlag of
       DryRun -> do
-        exitWith
-          [ ToStderr
-              ( T.unlines
-                  [ "Would run the following commands:",
-                    ""
-                  ]
-              ),
-            ToStdout (T.unlines $ fmap T.unwords commands)
-          ]
-          ExitSuccess
+        T.hPutStr
+          System.IO.stderr
+          ( T.unlines
+              [ "Would run the following commands:",
+                ""
+              ]
+          )
+        T.putStr (T.unlines $ fmap T.unwords commands)
+        exitSuccess
       NoDryRun -> forM_ commands runWithSudo
 
 runWithSudo :: [Text] -> IO ()
