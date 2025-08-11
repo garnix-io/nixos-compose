@@ -167,6 +167,11 @@ spec = do
       result <- assertSuccess $ test ctx ["up", "server"]
       result ^. #stdout `shouldBe` "server: already running\n"
 
+    it "does not output device status report ansi sequences" $ \ctx -> do
+      writeStandardFlake ctx Nothing
+      result <- assertSuccess $ test ctx ["up", "server", "-v"]
+      result ^. #stdout `shouldNotSatisfy` ("\ESC[6n" `T.isInfixOf`)
+
     describe "networking" $ do
       repoRoot <- runIO getCurrentDirectory
       it "allows to talk from one vm to the other by static ip" $ \ctx -> do
