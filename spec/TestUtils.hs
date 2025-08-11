@@ -4,7 +4,7 @@ module TestUtils where
 
 import Context
 import Control.Concurrent (newMVar, readMVar, threadDelay)
-import Control.Exception.Safe (SomeException, finally, try)
+import Control.Exception.Safe (SomeException, finally, throwIO, try)
 import Cradle qualified
 import Data.Map qualified as Map
 import Data.Maybe (fromJust, isJust)

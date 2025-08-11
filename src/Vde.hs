@@ -5,13 +5,12 @@ import Control.Exception.Safe (SomeException, try)
 import Cradle qualified
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options
 import StdLib
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
-import System.IO (stderr)
 import System.Posix (sigKILL, signalProcess)
 import System.Process
 import Utils (which)
@@ -32,7 +31,9 @@ start ctx = do
         { std_in = UseHandle stdinPipe -- `CreatePipe :: StdStream` doesn't work reliably
         }
   registerProcess ctx VdeSwitch handle
-  pid <- System.Process.getPid handle <&> fromMaybe (error "no pid")
+  pid <-
+    System.Process.getPid handle
+      >>= maybe (impossible "vde_switch process has no pid") pure
   pure $ VdeState {pid}
 
 stop :: Context -> VdeState -> IO ()
@@ -73,25 +74,29 @@ setupTapDevice ctx dryRunFlag ipAddress = do
   sudo <- which "sudo"
   case sudo of
     Nothing -> do
-      T.hPutStr
-        stderr
-        $ T.unlines
-          [ "`sudo` not found in the $PATH, cannot create `tap` device.",
-            "You can run the following commands with elevated privileges to create it manually:",
-            ""
-          ]
-      T.putStr $ T.unlines $ fmap T.unwords commands
-      throwIO $ ExitFailure 1
+      exitWith
+        [ ToStderr
+            ( T.unlines
+                [ "`sudo` not found in the $PATH, cannot create `tap` device.",
+                  "You can run the following commands with elevated privileges to create it manually:",
+                  ""
+                ]
+            ),
+          ToStdout (T.unlines $ fmap T.unwords commands)
+        ]
+        (ExitFailure 1)
     Just _ -> case dryRunFlag of
       DryRun -> do
-        T.hPutStr
-          stderr
-          $ T.unlines
-            [ "Would run the following commands:",
-              ""
-            ]
-        T.putStr $ T.unlines $ fmap T.unwords commands
-        throwIO ExitSuccess
+        exitWith
+          [ ToStderr
+              ( T.unlines
+                  [ "Would run the following commands:",
+                    ""
+                  ]
+              ),
+            ToStdout (T.unlines $ fmap T.unwords commands)
+          ]
+          ExitSuccess
       NoDryRun -> forM_ commands runWithSudo
 
 runWithSudo :: [Text] -> IO ()

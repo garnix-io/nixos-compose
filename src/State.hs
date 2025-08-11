@@ -29,6 +29,7 @@ import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options (VmName (..))
@@ -67,10 +68,10 @@ modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
     contents <- T.readFile file
-    let parsed =
-          if contents == ""
-            then emptyState
-            else either error id (eitherDecode' (cs contents) :: Either String State)
+    parsed <-
+      if contents == ""
+        then pure emptyState
+        else either (impossible . cs) pure (eitherDecode' (cs contents) :: Either String State)
     cleanedUp <- cleanUpVms ctx parsed
     (next, a) <- action cleanedUp
     next <- cleanUpVdeSwitch ctx next
@@ -160,7 +161,7 @@ readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
   case Map.lookup vmName (state ^. #vms) of
-    Nothing -> error "vm not found"
+    Nothing -> impossible $ "state for vm " <> vmNameToText vmName <> " not found"
     Just vmState -> pure vmState
 
 writeVmState :: Context -> VmName -> VmState -> IO ()

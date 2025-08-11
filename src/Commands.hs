@@ -10,12 +10,13 @@ module Commands
 where
 
 import Context
-import Control.Exception.Safe (onException)
+import Control.Exception.Safe (onException, throwIO)
 import Cradle
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 qualified as IPv4
 import Options (AllOrSomeVms (..), DryRunFlag, Verbosity, VmName (..))
 import State
@@ -26,7 +27,6 @@ import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
 import Utils
 import Vde qualified
-import Prelude
 
 list :: Context -> IO ()
 list ctx = do
@@ -41,9 +41,7 @@ up ctx verbosity upOptions = do
     All -> do
       vmNames <- listVms (nixVms ctx) ctx
       case vmNames of
-        [] -> do
-          T.hPutStrLn stderr "No vms are defined. Nothing to do."
-          throwIO $ ExitFailure 1
+        [] -> abort "No vms are defined. Nothing to do."
         a : r -> pure $ a :| r
     Some vmNames -> pure vmNames
   forM_ vmNames $ \vmName -> do
@@ -56,7 +54,7 @@ up ctx verbosity upOptions = do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
           exists <- doesFileExist vmKeyPath
           when exists $ do
-            error $ vmKeyPath <> " already exists"
+            impossible $ cs vmKeyPath <> " already exists"
           () <-
             runWithErrorHandling $
               Cradle.cmd "ssh-keygen"
@@ -67,7 +65,9 @@ up ctx verbosity upOptions = do
           T.hPutStrLn stderr "Starting VM..."
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
-          pid <- System.Process.getPid ph <&> fromMaybe (error "no pid")
+          pid <-
+            System.Process.getPid ph
+              >>= maybe (impossible "qemu process has no pid") pure
           pure (ph, pid, port)
         State.writeVmState ctx vmName (Running {pid, port, ip})
         waitForVm ctx vmName ph
@@ -86,18 +86,14 @@ down ctx vmNames = do
     All -> do
       all <- listRunningVms ctx
       case Map.keys all of
-        [] -> do
-          T.putStrLn "no vms running, nothing to do"
-          throwIO ExitSuccess
+        [] -> exitWith [ToStderr "no vms running, nothing to do"] ExitSuccess
         a : r -> pure $ a :| r
   state <- readState ctx
   forM_ toStop $ \vmName -> do
     case Map.lookup vmName (state ^. #vms) of
       Nothing -> T.putStrLn $ vmNameToText vmName <> " is not running, nothing to do"
       Just vmState -> case vmState of
-        Starting {} -> do
-          T.hPutStrLn stderr $ vmNameToText vmName <> ": building, cannot stop a building vm"
-          throwIO $ ExitFailure 1
+        Starting {} -> abort $ vmNameToText vmName <> ": building, cannot stop a building vm"
         Running {pid} -> do
           T.putStrLn $ "stopping " <> vmNameToText vmName
           signalProcess sigKILL pid
@@ -113,12 +109,9 @@ waitForVm ctx vmName ph = do
       case vmScriptExitCode of
         Nothing -> waitForVm ctx vmName ph
         Just vmScriptExitCode -> do
-          T.hPutStrLn stderr "VM failed to start:\n"
-          stdoutLog <- getVmFilePath ctx vmName "stdout.log"
-          T.readFile stdoutLog >>= T.hPutStrLn stderr
-          stderrLog <- getVmFilePath ctx vmName "stderr.log"
-          T.readFile stderrLog >>= T.hPutStrLn stderr
-          throwIO $ case vmScriptExitCode of
+          stdout <- getVmFilePath ctx vmName "stdout.log" >>= T.readFile
+          stderr <- getVmFilePath ctx vmName "stderr.log" >>= T.readFile
+          exitWith [ToStderr (T.unlines ["VM failed to start:\n", stdout, stderr])] $ case vmScriptExitCode of
             ExitSuccess -> ExitFailure 1
             vmScriptExitCode -> vmScriptExitCode
 
@@ -145,9 +138,7 @@ status ctx args = do
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do
   case Map.lookup vm (state ^. #vms) of
-    Nothing -> do
-      T.hPutStrLn stderr $ "vm not running: " <> vmNameToText vm
-      throwIO $ ExitFailure 1
+    Nothing -> abort $ "vm not running: " <> vmNameToText vm
     Just vmState -> T.putStrLn $ IPv4.encode (vmState ^. #ip)
   pure state
 
