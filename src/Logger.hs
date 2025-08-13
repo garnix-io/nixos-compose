@@ -26,9 +26,6 @@ withAutoLogger action = do
 
 -- * ANSI logger
 
-newtype ANSILogger = ANSILogger {statusLine :: MVar (Maybe Text)}
-  deriving stock (Generic)
-
 withNoBuffering :: Handle -> IO a -> IO a
 withNoBuffering handle action =
   bracket
