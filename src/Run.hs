@@ -3,15 +3,14 @@ module Run where
 import Commands
 import Context (Context)
 import Context.Production qualified
+import Context.Utils (info)
 import Control.Exception qualified
 import Control.Exception.Safe (SomeException, fromException)
 import Data.Text hiding (elem)
-import Logging (withANSILogger)
 import Options
-import Options.Applicative
+import Options.Applicative (execParserPure, handleParseResult, prefs, showHelpOnError)
 import StdLib
 import System.Environment (getArgs)
-import System.IO (hPrint, stderr)
 
 runInProduction :: IO ()
 runInProduction = do
@@ -43,5 +42,5 @@ handleExceptions ctx action = do
       case fromException e of
         Just e -> pure e
         Nothing -> do
-          (ctx ^. #logger . #pushLog) stderr (cs $ show e)
+          info ctx (cs $ show e)
           pure (ExitFailure 33)

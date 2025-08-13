@@ -4,7 +4,7 @@ import Control.Concurrent (MVar, modifyMVar_)
 import Cradle qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
-import Logging
+import Logger
 import Net.IPv4 (IPv4)
 import Options (Verbosity, VmName)
 import StdLib

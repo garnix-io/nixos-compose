@@ -71,7 +71,8 @@ spec = do
         _ <- assertSuccess $ test ctx ["up", "a"]
         stopProcess ctx (Vm "a")
         result <- assertSuccess $ test ctx ["status", "a"]
-        result ^. #stdout `shouldBe` "WARN: cannot find process for vm: a\na: not running\n"
+        result ^. #stderr `shouldBe` "WARN: cannot find process for vm: a\n"
+        result ^. #stdout `shouldBe` "a: not running\n"
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
   describe "list" $ do

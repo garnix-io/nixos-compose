@@ -1,7 +1,7 @@
 module Context.Production where
 
 import Context
-import Logging (withAutoLogger)
+import Logger (withAutoLogger)
 import NixVms qualified
 import System.Directory (XdgDirectory (..), getCurrentDirectory, getXdgDirectory)
 import System.IO

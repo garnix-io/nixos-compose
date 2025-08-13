@@ -4,7 +4,6 @@ module TestUtils where
 
 import Context
 import Control.Concurrent (newMVar, readMVar, threadDelay)
-import Control.Concurrent.MVar (modifyMVar_)
 import Control.Exception.Safe (SomeException, finally, throwIO, try)
 import Cradle qualified
 import Data.Map qualified as Map
@@ -12,10 +11,9 @@ import Data.Maybe (fromJust, isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import GHC.Clock (getMonotonicTime)
 import GHC.Exts (IsString (..))
-import Logging
+import Logger (mkSimpleLogger)
 import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
 import Run (run)
@@ -60,7 +58,6 @@ test ctx args = do
     putStr stdout
     hPutStr System.IO.stderr stderr
   pure $ TestResult (cs stdout) (cs stderr) exitCode
-
 
 withContext :: NixVms -> (Context -> IO a) -> IO a
 withContext nixVms action = do

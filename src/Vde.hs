@@ -1,18 +1,17 @@
 module Vde where
 
 import Context
+import Context.Utils
 import Control.Exception.Safe (SomeException, try)
 import Cradle qualified
 import Data.Aeson (FromJSON, ToJSON)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options
 import StdLib
 import System.Directory (createDirectoryIfMissing, removeDirectoryRecursive)
-import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process
 import Utils (which)
@@ -35,7 +34,7 @@ start ctx = do
   registerProcess ctx VdeSwitch handle
   pid <-
     System.Process.getPid handle
-      >>= maybe (impossible "vde_switch process has no pid") pure
+      >>= maybe (impossible ctx "vde_switch process has no pid") pure
   pure $ VdeState {pid}
 
 stop :: Context -> VdeState -> IO ()
@@ -76,26 +75,27 @@ setupTapDevice ctx dryRunFlag ipAddress = do
   sudo <- which "sudo"
   case sudo of
     Nothing -> do
-      T.hPutStr
-        System.IO.stderr
-        ( T.unlines
+      info
+        ctx
+        ( T.intercalate
+            "\n"
             [ "`sudo` not found in the $PATH, cannot create `tap` device.",
               "You can run the following commands with elevated privileges to create it manually:",
               ""
             ]
         )
-      T.putStr (T.unlines $ fmap T.unwords commands)
+      output ctx (T.intercalate "\n" $ fmap T.unwords commands)
       exitWith $ ExitFailure 1
     Just _ -> case dryRunFlag of
       DryRun -> do
-        T.hPutStr
-          System.IO.stderr
-          ( T.unlines
+        info ctx
+          ( T.intercalate
+              "\n"
               [ "Would run the following commands:",
                 ""
               ]
           )
-        T.putStr (T.unlines $ fmap T.unwords commands)
+        output ctx (T.intercalate "\n" $ fmap T.unwords commands)
         exitSuccess
       NoDryRun -> forM_ commands runWithSudo
 
