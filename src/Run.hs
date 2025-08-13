@@ -6,6 +6,7 @@ import Context.Production qualified
 import Control.Exception qualified
 import Control.Exception.Safe (SomeException, fromException)
 import Data.Text hiding (elem)
+import Logging (withANSILogger)
 import Options
 import Options.Applicative
 import StdLib
@@ -15,12 +16,12 @@ import System.IO (hPrint, stderr)
 runInProduction :: IO ()
 runInProduction = do
   args <- getArgs <&> fmap cs
-  ctx <- Context.Production.mkContext
-  run ctx args >>= exitWith
+  Context.Production.withContext $ \ctx -> do
+    run ctx args >>= exitWith
 
 run :: Context -> [Text] -> IO ExitCode
 run ctx args =
-  handleExceptions $ do
+  handleExceptions ctx $ do
     (Options opts) <- handleParseResult $ execParserPure (prefs showHelpOnError) parserInfo (cs <$> args)
     case opts of
       List -> list ctx
@@ -32,8 +33,8 @@ run ctx args =
       Tap dryRunFlag -> tap ctx dryRunFlag
     pure ExitSuccess
 
-handleExceptions :: IO ExitCode -> IO ExitCode
-handleExceptions action = do
+handleExceptions :: Context -> IO ExitCode -> IO ExitCode
+handleExceptions ctx action = do
   -- handle all -- including async -- exceptions
   result <- Control.Exception.try action
   case result of
@@ -42,5 +43,5 @@ handleExceptions action = do
       case fromException e of
         Just e -> pure e
         Nothing -> do
-          hPrint stderr e
+          (ctx ^. #logger . #pushLog) stderr (cs $ show e)
           pure (ExitFailure 33)

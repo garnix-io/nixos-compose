@@ -4,6 +4,7 @@ module TestUtils where
 
 import Context
 import Control.Concurrent (newMVar, readMVar, threadDelay)
+import Control.Concurrent.MVar (modifyMVar_)
 import Control.Exception.Safe (SomeException, finally, throwIO, try)
 import Cradle qualified
 import Data.Map qualified as Map
@@ -11,8 +12,10 @@ import Data.Maybe (fromJust, isJust)
 import Data.String (IsString)
 import Data.String.Conversions
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import GHC.Clock (getMonotonicTime)
 import GHC.Exts (IsString (..))
+import Logging
 import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
 import Run (run)
@@ -58,19 +61,22 @@ test ctx args = do
     hPutStr System.IO.stderr stderr
   pure $ TestResult (cs stdout) (cs stderr) exitCode
 
+
 withContext :: NixVms -> (Context -> IO a) -> IO a
 withContext nixVms action = do
   withSystemTempFile "test-stdin" $ \_stdinFile stdinHandle -> do
     withSystemTempDirectory "test-working-dir" $ \workingDir -> do
       withSystemTempDirectory "test-storage-dir" $ \storageDir -> do
         testState <- newMVar $ TestState mempty mempty
+        logger <- mkSimpleLogger
         let ctx =
               Context
                 { testState = Just testState,
                   stdin = stdinHandle,
                   workingDir = workingDir,
                   storageDir = storageDir </> "nixos-compose",
-                  nixVms
+                  nixVms,
+                  logger
                 }
         action ctx `finally` endAllRegisteredProcesses ctx
 

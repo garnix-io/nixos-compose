@@ -59,10 +59,9 @@ up ctx verbosity upOptions = do
             runWithErrorHandling $
               Cradle.cmd "ssh-keygen"
                 & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-          T.hPutStrLn stderr "Building NixOS config..."
+          (ctx ^. #logger . #setPhase) vmName "building"
           (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
-          T.hPutStrLn stderr "Done"
-          T.hPutStrLn stderr "Starting VM..."
+          (ctx ^. #logger . #setPhase) vmName "starting"
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <-
@@ -71,7 +70,7 @@ up ctx verbosity upOptions = do
           pure (ph, pid, port)
         State.writeVmState ctx vmName (Running {pid, port, ip})
         waitForVm ctx vmName ph
-        T.hPutStrLn stderr "Done"
+        (ctx ^. #logger . #clearPhase) vmName
   updateVmHostEntries ctx
 
 removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
