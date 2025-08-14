@@ -1,6 +1,7 @@
 module NixVms (NixVms (..), production) where
 
 import Context
+import Context.Utils (runWithErrorHandling)
 import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
@@ -25,7 +26,6 @@ import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), create
 import Utils
 import Vde qualified
 import Prelude
-import Context.Utils (runWithErrorHandling)
 
 production :: NixVms
 production =
@@ -187,10 +187,13 @@ runVmImpl ctx verbosity vmName vmExecutable = do
       pure ()
   pure ph
 
+removeNonPrintableChars :: Text -> Text
+removeNonPrintableChars = cs . filter (>= ' ') . cs
+
 streamHandles :: Context -> VmName -> Handle -> Handle -> IO ()
 streamHandles ctx vm input output = do
   chunk <- T.hGetLine input
-  (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> stripAnsiEscapeCodes chunk
+  (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> removeNonPrintableChars (stripAnsiEscapeCodes chunk)
   streamHandles ctx vm input output
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
