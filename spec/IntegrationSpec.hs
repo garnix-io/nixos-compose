@@ -85,10 +85,10 @@ spec = do
       stdout result `shouldBe` ""
       stderr result
         `shouldBe` T.unlines
-          [ "Building NixOS config...",
-            "Done",
-            "Starting VM...",
-            "Done"
+          [ "server: building...",
+            "server: done building",
+            "server: starting...",
+            "server: done starting"
           ]
 
     it "has nice output when the nix build fails" $ \ctx -> do
@@ -96,7 +96,7 @@ spec = do
       result <- test ctx ["up", "does-not-exist"]
       result ^. #exitCode `shouldBe` ExitFailure 1
       stdout result `shouldBe` ""
-      cs (stderr result) `shouldContain` "Building NixOS config...\nCommand exited with code 1"
+      cs (stderr result) `shouldContain` "does-not-exist: building...\nCommand exited with code 1"
       cs (stderr result) `shouldContain` "does not provide attribute 'packages.x86_64-linux.nixosConfigurations.\"does-not-exist\""
 
     it "starts vms with arbitrary hostnames" $ \ctx -> do
