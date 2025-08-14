@@ -1,6 +1,7 @@
 module NixVms (NixVms (..), production) where
 
 import Context
+import Context.Utils (runWithErrorHandling)
 import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
@@ -9,6 +10,7 @@ import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Network.Socket.Free (getFreePort)
@@ -38,7 +40,7 @@ production =
 listVmsImpl :: Context -> IO [VmName]
 listVmsImpl ctx = do
   Cradle.StdoutRaw json <-
-    runWithErrorHandling $
+    runWithErrorHandling ctx $
       Cradle.cmd "nix"
         & Cradle.setWorkingDir (workingDir ctx)
         & addArgs
@@ -51,7 +53,7 @@ listVmsImpl ctx = do
                  ]
           )
   case Aeson.eitherDecode' (cs json) of
-    Left err -> error err
+    Left err -> impossible ctx $ cs err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
 buildVmScriptImpl :: Context -> VmName -> IPv4 -> IO (FilePath, Port)
@@ -59,7 +61,7 @@ buildVmScriptImpl ctx vmName ip = do
   port <- getFreePort
   moduleExtensions <- getModuleExtensions ctx vmName port ip
   (Cradle.StdoutTrimmed drvPathJson) <-
-    runWithErrorHandling $
+    runWithErrorHandling ctx $
       Cradle.cmd "nix"
         & Cradle.setWorkingDir (workingDir ctx)
         & Cradle.addArgs
@@ -71,12 +73,12 @@ buildVmScriptImpl ctx vmName ip = do
                    "nixConfig: (nixConfig.extendModules { modules = [(" <> moduleExtensions <> ")]; }).config.system.build.vm.drvPath"
                  ]
           )
-  let drvPath :: Text = case Aeson.eitherDecode' $ cs drvPathJson of
-        Right t -> t
-        Left err -> error err
+  drvPath :: Text <- case Aeson.eitherDecode' $ cs drvPathJson of
+    Right t -> pure t
+    Left err -> impossible ctx $ cs err
 
   (Cradle.StdoutTrimmed outPath) <-
-    runWithErrorHandling $
+    runWithErrorHandling ctx $
       Cradle.cmd "nix"
         & Cradle.addArgs
           ( nixStandardFlags
@@ -91,7 +93,7 @@ buildVmScriptImpl ctx vmName ip = do
   files <- listDirectory (cs outPath </> "bin")
   case files of
     [file] -> pure (cs outPath </> "bin" </> file, port)
-    files -> error $ "expected one vm script: " <> show files
+    files -> impossible ctx $ "expected one vm script: " <> cs (show files)
 
 nixStandardFlags :: [Text]
 nixStandardFlags =
@@ -106,6 +108,7 @@ getModuleExtensions ctx vmName port ip = do
     cs
       [i|
         { pkgs, ... }: {
+          console.enable = false;
           services.openssh.enable = true;
           users.users.vmuser = {
             isNormalUser = true;
@@ -184,16 +187,19 @@ runVmImpl ctx verbosity vmName vmExecutable = do
     DefaultVerbosity -> pure ()
     Verbose -> do
       (Just stdout, Just stderr) <- pure (stdout, stderr)
-      _ <- forkIO $ streamHandles vmName stdout System.IO.stdout
-      _ <- forkIO $ streamHandles vmName stderr System.IO.stderr
+      _ <- forkIO $ streamHandles ctx vmName stdout System.IO.stdout
+      _ <- forkIO $ streamHandles ctx vmName stderr System.IO.stderr
       pure ()
   pure ph
 
-streamHandles :: VmName -> Handle -> Handle -> IO ()
-streamHandles vm input output = do
+removeNonPrintableChars :: Text -> Text
+removeNonPrintableChars = cs . filter (>= ' ') . cs
+
+streamHandles :: Context -> VmName -> Handle -> Handle -> IO ()
+streamHandles ctx vm input output = do
   chunk <- T.hGetLine input
-  T.hPutStrLn output $ vmNameToText vm <> "> " <> stripAnsiEscapeCodes chunk
-  streamHandles vm input output
+  (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> removeNonPrintableChars (stripAnsiEscapeCodes chunk)
+  streamHandles ctx vm input output
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
 sshIntoVmImpl ctx vmName command = do
@@ -201,7 +207,7 @@ sshIntoVmImpl ctx vmName command = do
   vmState <- State.readVmState ctx vmName
   case vmState of
     Starting {} -> do
-      error "cannot ssh into a starting vm"
+      abort ctx "cannot ssh into a starting vm"
     Running {port} -> do
       Cradle.run $
         Cradle.cmd "ssh"

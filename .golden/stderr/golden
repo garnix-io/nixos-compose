@@ -1,11 +1,16 @@
 Missing: COMMAND
 
-Usage: nixos-compose COMMAND
+Usage: nixos-compose [--version] COMMAND
+
+Available options:
+  --version                Show version (unknown) and exit
 
 Available commands:
-  list                     List all configured vms
   up                       Start development vms
+  down                     Stop running vms
   ssh                      `ssh` into a running vm
   status                   Show the status of running vms
-  down                     Stop running vms
+  list                     List all configured vms
   ip                       Print the ip address of a vm (in the virtual network)
+  tap                      Set up a tap device, to allow network access to vms
+                           from the host (uses `sudo`)

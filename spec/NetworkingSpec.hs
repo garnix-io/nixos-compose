@@ -89,8 +89,8 @@ spec = do
         stopProcess ctx (Vm "a")
         test ctx ["ip", "a"]
           `shouldReturn` TestResult
-            { stdout = "WARN: cannot find process for vm: a\n",
-              stderr = "vm not running: a\n",
+            { stdout = "",
+              stderr = "WARN: cannot find process for vm: a\nvm not running: a\n",
               exitCode = ExitFailure 1
             }
 

@@ -18,6 +18,7 @@ module State
     listRunningVms,
 
     -- * IPs
+    hostIp,
     getNextIp,
   )
 where
@@ -28,6 +29,7 @@ import Data.ByteString.Lazy qualified
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text.IO qualified as T
+import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options (VmName (..))
@@ -41,6 +43,7 @@ import System.Directory
 import System.FileLock
 import Utils (filterMapM)
 import Vde qualified
+import Context.Utils
 
 -- global state
 
@@ -66,10 +69,10 @@ modifyState ctx action = do
   file <- getStateFile ctx
   withFileLock file Exclusive $ \_lock -> do
     contents <- T.readFile file
-    let parsed =
-          if contents == ""
-            then emptyState
-            else either error id (eitherDecode' (cs contents) :: Either String State)
+    parsed <-
+      if contents == ""
+        then pure emptyState
+        else either (impossible ctx . cs) pure (eitherDecode' (cs contents) :: Either String State)
     cleanedUp <- cleanUpVms ctx parsed
     (next, a) <- action cleanedUp
     next <- cleanUpVdeSwitch ctx next
@@ -135,7 +138,7 @@ cleanUpVms ctx state = do
       Running {pid} -> do
         isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: ProcessID)
         unless isRunning $ do
-          T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
+          info ctx $ "WARN: cannot find process for vm: " <> vmNameToText vmName
           removeVmDir ctx vmName
         pure isRunning
 
@@ -159,7 +162,7 @@ readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
   case Map.lookup vmName (state ^. #vms) of
-    Nothing -> error "vm not found"
+    Nothing -> impossible ctx $ "state for vm " <> vmNameToText vmName <> " not found"
     Just vmState -> pure vmState
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
@@ -192,6 +195,9 @@ getVmFilePath ctx vmName path = do
   pure $ dir </> path
 
 -- * IPs
+
+hostIp :: IPv4
+hostIp = IPv4.fromOctets 10 0 0 1
 
 ipRange :: (IPv4, IPv4)
 ipRange = (IPv4.fromOctets 10 0 0 2, IPv4.fromOctets 10 0 0 254)

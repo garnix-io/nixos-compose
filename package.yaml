@@ -57,6 +57,7 @@ default-extensions:
 
 dependencies:
   - aeson
+  - ansi-terminal
   - base
   - bytestring
   - containers
@@ -76,4 +77,3 @@ dependencies:
   - strip-ansi-escape
   - text
   - unix
-  - xdg-basedir

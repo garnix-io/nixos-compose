@@ -19,6 +19,16 @@ spec = do
         result <- test ctx []
         pure $ defaultGolden "stderr" (cs (result ^. #stderr))
 
+    it "has a --version flag" $ do
+      withMockContext [] $ \ctx -> do
+        test ctx ["--version"]
+          `shouldReturn` TestResult "unknown\n" "" ExitSuccess
+
+    it "ignores other options and flags when --version is given" $ do
+      withMockContext [] $ \ctx -> do
+        test ctx ["--version", "list"]
+          `shouldReturn` TestResult "unknown\n" "" ExitSuccess
+
   describe "status" $ do
     context "without vm arguments" $ do
       it "lists the status of all vms" $ do
@@ -60,8 +70,11 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
         stopProcess ctx (Vm "a")
-        result <- assertSuccess $ test ctx ["status", "a"]
-        result ^. #stdout `shouldBe` "WARN: cannot find process for vm: a\na: not running\n"
+        test ctx ["status", "a"]
+          `shouldReturn` TestResult
+            "a: not running\n"
+            "WARN: cannot find process for vm: a\n"
+            ExitSuccess
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
   describe "list" $ do
@@ -110,7 +123,7 @@ spec = do
 
     it "prints a nice message when no vm names are given and no vms are running" $ do
       withMockContext ["a", "b"] $ \ctx -> do
-        (stdout <$> assertSuccess (test ctx ["down"])) `shouldReturn` "no vms running, nothing to do\n"
+        (stderr <$> assertSuccess (test ctx ["down"])) `shouldReturn` "no vms running, nothing to do\n"
 
     it "prints a nice message when the specified vms are not running" $ do
       withMockContext ["a", "b"] $ \ctx -> do

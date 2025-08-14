@@ -12,6 +12,8 @@ module StdLib
     (~>),
     cs,
     ExitCode (..),
+    exitSuccess,
+    exitWith,
     forM,
     forM_,
     fromMaybe,
@@ -20,14 +22,12 @@ module StdLib
     ProcessID,
     sort,
     Text,
-    throwIO,
     to,
     unless,
     when,
   )
 where
 
-import Control.Exception.Safe (throwIO)
 import Control.Lens (to, (%~), (&), (.~), (<&>), (?~), (^.), (^?))
 import Control.Monad (forM, forM_, unless, when)
 import Data.Aeson (FromJSON (..), ToJSON (..))
@@ -39,7 +39,7 @@ import Data.Maybe (fromMaybe, mapMaybe)
 import Data.String.Conversions (cs)
 import Data.Text (Text)
 import GHC.Generics (Generic)
-import System.Exit (ExitCode (..))
+import System.Exit (ExitCode (..), exitSuccess, exitWith)
 import System.FilePath ((</>))
 import System.Posix (ProcessID)
 

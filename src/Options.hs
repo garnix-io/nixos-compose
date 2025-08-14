@@ -2,6 +2,7 @@ module Options
   ( parserInfo,
     Options (..),
     Verbosity (..),
+    DryRunFlag (..),
     Command (..),
     AllOrSomeVms (..),
     VmName (..),
@@ -13,6 +14,7 @@ import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text
 import Options.Applicative
 import StdLib
+import Version qualified
 
 parserInfo :: ParserInfo Options
 parserInfo =
@@ -25,7 +27,13 @@ newtype Options = Options Command
   deriving stock (Show)
 
 instance Parseable Options where
-  parser = Options <$> parser
+  parser =
+    version
+      <*> (Options <$> parser)
+
+version :: Parser (a -> a)
+version =
+  infoOption (cs Version.version) (long "version" <> help ("Show version (" <> cs Version.version <> ") and exit"))
 
 data Command
   = List
@@ -34,22 +42,23 @@ data Command
   | Status {vmNames :: [VmName]}
   | Down {vms :: AllOrSomeVms}
   | Ip {vmName :: VmName}
+  | Tap {dryRun :: DryRunFlag}
   deriving stock (Show, Generic)
 
 instance Parseable Command where
   parser =
     hsubparser
       ( command
-          "list"
+          "up"
           ( info
-              (pure List)
-              (fullDesc <> progDesc "List all configured vms")
+              (Up <$> parser <*> parser)
+              (fullDesc <> progDesc "Start development vms")
           )
           <> command
-            "up"
+            "down"
             ( info
-                (Up <$> parser <*> parser)
-                (fullDesc <> progDesc "Start development vms")
+                (Down <$> parser)
+                (progDesc "Stop running vms")
             )
           <> command
             "ssh"
@@ -64,16 +73,22 @@ instance Parseable Command where
                 (fullDesc <> progDesc "Show the status of running vms")
             )
           <> command
-            "down"
+            "list"
             ( info
-                (Down <$> parser)
-                (progDesc "Stop running vms")
+                (pure List)
+                (fullDesc <> progDesc "List all configured vms")
             )
           <> command
             "ip"
             ( info
                 (Ip <$> parser)
                 (progDesc "Print the ip address of a vm (in the virtual network)")
+            )
+          <> command
+            "tap"
+            ( info
+                (Tap <$> parser)
+                (progDesc "Set up a tap device, to allow network access to vms from the host (uses `sudo`)")
             )
       )
 
@@ -91,6 +106,14 @@ instance Parseable Verbosity where
           <> short 'v'
           <> help "increase verbosity"
       )
+
+data DryRunFlag
+  = NoDryRun
+  | DryRun
+  deriving stock (Show)
+
+instance Parseable DryRunFlag where
+  parser = flag NoDryRun DryRun (long "dry-run" <> help "Just print what would be done")
 
 data AllOrSomeVms
   = All
