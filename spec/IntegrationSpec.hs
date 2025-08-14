@@ -167,6 +167,33 @@ spec = do
       result <- assertSuccess $ test ctx ["up", "server"]
       result ^. #stdout `shouldBe` "server: already running\n"
 
+    it "allows mounting the repo root using the NIXOS_COMPOSE_FLAKE_DIR environment variable" $ \ctx -> do
+      writeFile (workingDir ctx </> "foo") "bar"
+      writeFile
+        (workingDir ctx </> "flake.nix")
+        [i|
+          {
+            inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
+            outputs = { nixpkgs, ... }: {
+              nixosConfigurations.server = (nixpkgs.lib.nixosSystem {
+                modules = [
+                  {
+                    networking.hostName = "server";
+                    nixpkgs.hostPlatform = "x86_64-linux";
+                    system.stateVersion = "25.05";
+                    virtualisation.vmVariant.virtualisation.sharedDirectories.test = {
+                      source = "$NIXOS_COMPOSE_FLAKE_DIR";
+                      target = "/mnt";
+                    };
+                  }
+                ];
+              });
+            };
+          }
+        |]
+      _ <- assertSuccess $ test ctx ["up", "server"]
+      (stdout <$> assertSuccess (test ctx ["ssh", "server", "sudo cat /mnt/foo"])) `shouldReturn` "bar"
+
     it "does not output device status report ansi sequences" $ \ctx -> do
       writeStandardFlake ctx Nothing
       result <- assertSuccess $ test ctx ["up", "server", "-v"]

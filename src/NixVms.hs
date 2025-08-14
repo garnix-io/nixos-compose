@@ -164,7 +164,12 @@ runVmImpl ctx verbosity vmName vmExecutable = do
               "vde,id=vlan1,sock=" <> vdeCtlDir
             ]
         )
-          { env = Just $ Map.toList $ Map.insert "NIX_DISK_IMAGE" nixDiskImage parentEnvironment,
+          { env =
+              Just $
+                Map.toList $
+                  parentEnvironment
+                    <> "NIX_DISK_IMAGE" ~> nixDiskImage
+                    <> "NIXOS_COMPOSE_FLAKE_DIR" ~> (ctx ^. #workingDir),
             std_in = CreatePipe,
             std_out = stdout,
             std_err = stderr
@@ -222,6 +227,7 @@ sshIntoVmImpl ctx vmName command = do
               cs (show port),
               "-q",
               "localhost",
+              "--",
               command
             ]
 
