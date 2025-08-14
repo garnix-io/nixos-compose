@@ -62,7 +62,6 @@ executable nixos-compose
     , generic-lens
     , interpolate
     , ip
-    , ki
     , lens
     , optparse-applicative
     , port-utils
