@@ -192,7 +192,7 @@ spec = do
           }
         |]
       _ <- assertSuccess $ test ctx ["up", "server"]
-      (stdout <$> assertSuccess (test ctx ["ssh", "server", "cat /mnt/foo"])) `shouldReturn` "bar"
+      (stdout <$> assertSuccess (test ctx ["ssh", "server", "sudo cat /mnt/foo"])) `shouldReturn` "bar"
 
     it "does not output device status report ansi sequences" $ \ctx -> do
       writeStandardFlake ctx Nothing
