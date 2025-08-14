@@ -14,6 +14,8 @@ executable nixos-compose
       Commands
       Context
       Context.Production
+      Context.Utils
+      Logger
       Logging
       NixVms
       Options
@@ -49,6 +51,7 @@ executable nixos-compose
   ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:
       aeson
+    , ansi-terminal
     , base
     , bytestring
     , containers
@@ -76,6 +79,7 @@ test-suite spec
   other-modules:
       CliSpec
       IntegrationSpec
+      LoggerSpec
       LoggingSpec
       NetworkingSpec
       SpecHook
@@ -86,6 +90,8 @@ test-suite spec
       Commands
       Context
       Context.Production
+      Context.Utils
+      Logger
       Logging
       Main
       NixVms
@@ -123,6 +129,7 @@ test-suite spec
   ghc-options: -O0 -threaded -Weverything -Wno-implicit-prelude -Wno-missing-export-lists -Wno-missing-import-lists -Wno-missing-kind-signatures -Wno-missing-local-signatures -Wno-missing-safe-haskell-mode -Wno-monomorphism-restriction -Wno-name-shadowing -Wno-partial-fields -Wno-prepositive-qualified-module -Wno-unsafe -Wno-unused-packages
   build-depends:
       aeson
+    , ansi-terminal
     , base
     , bytestring
     , containers

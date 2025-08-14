@@ -18,6 +18,11 @@ import TestUtils
 
 spec :: Spec
 spec = do
+  it "starts a vm" $ do
+      withMockContext ["a"] $ \ctx -> do
+        result <- assertSuccess $ test ctx ["up", "a"]
+        result ^. #stderr `shouldBe` "a: building...\na: done building\na: starting...\na: done starting\n"
+
   context "when no vm names are given" $ do
     it "starts all vms" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
@@ -92,11 +97,11 @@ spec = do
                )
     it "prints out the error message" $ do
       withMockContext ["a"] $ \(failingBuildVmScript -> ctx) -> do
-        test ctx ["up", "a"] `shouldReturn` TestResult "" "Building NixOS config...\ntest output\n" (ExitFailure 42)
+        test ctx ["up", "a"] `shouldReturn` TestResult "" "a: building...\ntest output\n" (ExitFailure 42)
 
     it "doesn't add a vm to the state" $ do
       withMockContext ["a"] $ \(failingBuildVmScript -> ctx) -> do
-        test ctx ["up", "a"] `shouldReturn` TestResult "" "Building NixOS config...\ntest output\n" (ExitFailure 42)
+        test ctx ["up", "a"] `shouldReturn` TestResult "" "a: building...\ntest output\n" (ExitFailure 42)
         (^. #vms) <$> readState ctx `shouldReturn` mempty
         (^. #vde) <$> readState ctx `shouldReturn` Nothing
 
@@ -156,9 +161,9 @@ spec = do
           `shouldReturn` TestResult
             ""
             ( T.unlines
-                [ "Building NixOS config...",
-                  "Done",
-                  "Starting VM...",
+                [ "a: building...",
+                  "a: done building",
+                  "a: starting...",
                   "VM failed to start:",
                   "",
                   "test stdout",
@@ -173,9 +178,9 @@ spec = do
           `shouldReturn` TestResult
             ""
             ( T.unlines
-                [ "Building NixOS config...",
-                  "Done",
-                  "Starting VM...",
+                [ "a: building...",
+                  "a: done building",
+                  "a: starting...",
                   "VM failed to start:",
                   "",
                   "test stdout",

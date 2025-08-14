@@ -1,21 +1,22 @@
 module Logging where
 
+import Context (Context)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import GHC.Stack (HasCallStack, callStack, prettyCallStack)
 import StdLib
-import System.IO (stderr)
+import Context.Utils
 
 -- | Prints the message to `stderr` and exits with exit code 1.
 -- This is our standard way of aborting the program on error conditions.
-abort :: Text -> IO a
-abort message = do
-  T.hPutStr stderr $ if "\n" `T.isSuffixOf` message then message else message <> "\n"
+abort :: Context -> Text -> IO a
+abort ctx message = do
+  info ctx $ T.stripEnd message
   exitWith $ ExitFailure 1
 
-impossible :: (HasCallStack) => Text -> IO a
-impossible message = do
+impossible :: (HasCallStack) => Context -> Text -> IO a
+impossible ctx message = do
   abort
+    ctx
     ( T.unlines
         [ "nixos-compose encountered an unexpected error: " <> message,
           "Please, consider reporting this as a bug here: https://github.com/garnix-io/nixos-compose/issues",

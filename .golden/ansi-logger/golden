@@ -1,0 +1,38 @@
+This asserts stdout and stderr of the ansi logger
+If these change it's best that you manually confirm that the logger still works well in a real terminal
+
+[1G[1ma[22m: building[0K
+[1F[1ma[22m: building[0K
+[1mb[22m: building[0K
+[2F[1ma[22m: building[0K
+[1mb[22m: building[0K
+[1mc[22m: building[0K
+[3Flog line[0K
+[1ma[22m: building[0K
+[1mb[22m: building[0K
+[1mc[22m: building[0K
+[3F[1ma[22m: building[0K
+[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[3Flog line[0K
+[1ma[22m: building[0K
+[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[3F[1ma[22m: starting[0K
+[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[3Fthis is a very long log line[0K
+[1ma[22m: starting[0K
+[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[1T[2F[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[0K[2F[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[2Flog line[0K
+[1mb[22m: starting[0K
+[1mc[22m: building[0K
+[1T[1F[1mc[22m: building[0K
+[0K[1Flog line[0K
+[1mc[22m: building[0K
+[1T[1G[0K

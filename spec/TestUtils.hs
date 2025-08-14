@@ -13,6 +13,7 @@ import Data.String.Conversions
 import Data.Text qualified as T
 import GHC.Clock (getMonotonicTime)
 import GHC.Exts (IsString (..))
+import Logger (mkSimpleLogger)
 import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
 import Run (run)
@@ -64,13 +65,15 @@ withContext nixVms action = do
     withSystemTempDirectory "test-working-dir" $ \workingDir -> do
       withSystemTempDirectory "test-storage-dir" $ \storageDir -> do
         testState <- newMVar $ TestState mempty mempty
+        logger <- mkSimpleLogger
         let ctx =
               Context
                 { testState = Just testState,
                   stdin = stdinHandle,
                   workingDir = workingDir,
                   storageDir = storageDir </> "nixos-compose",
-                  nixVms
+                  nixVms,
+                  logger
                 }
         action ctx `finally` endAllRegisteredProcesses ctx
 

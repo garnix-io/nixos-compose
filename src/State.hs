@@ -43,6 +43,7 @@ import System.Directory
 import System.FileLock
 import Utils (filterMapM)
 import Vde qualified
+import Context.Utils
 
 -- global state
 
@@ -71,7 +72,7 @@ modifyState ctx action = do
     parsed <-
       if contents == ""
         then pure emptyState
-        else either (impossible . cs) pure (eitherDecode' (cs contents) :: Either String State)
+        else either (impossible ctx . cs) pure (eitherDecode' (cs contents) :: Either String State)
     cleanedUp <- cleanUpVms ctx parsed
     (next, a) <- action cleanedUp
     next <- cleanUpVdeSwitch ctx next
@@ -137,7 +138,7 @@ cleanUpVms ctx state = do
       Running {pid} -> do
         isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: ProcessID)
         unless isRunning $ do
-          T.putStrLn $ "WARN: cannot find process for vm: " <> vmNameToText vmName
+          info ctx $ "WARN: cannot find process for vm: " <> vmNameToText vmName
           removeVmDir ctx vmName
         pure isRunning
 
@@ -161,7 +162,7 @@ readVmState :: Context -> VmName -> IO VmState
 readVmState ctx vmName = do
   state <- readState ctx
   case Map.lookup vmName (state ^. #vms) of
-    Nothing -> impossible $ "state for vm " <> vmNameToText vmName <> " not found"
+    Nothing -> impossible ctx $ "state for vm " <> vmNameToText vmName <> " not found"
     Just vmState -> pure vmState
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
