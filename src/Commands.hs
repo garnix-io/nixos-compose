@@ -15,7 +15,7 @@ import Cradle
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
-import Data.Maybe (isJust)
+import Data.Maybe (catMaybes, isJust)
 import Data.Text qualified as T
 import Logging
 import Net.IPv4 qualified as IPv4
@@ -80,21 +80,22 @@ status ctx args = do
           then
             (^. #ip) <$> Map.lookup vmName runningVms
           else Nothing
+  supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
   let listedVms = case args of
         [] -> nubOrd (configuredVms <> Map.keys runningVms)
         args -> args
-  case listedVms of
-    [] -> output ctx "no vms configured, no vms running"
-    vmNames -> do
-      supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
-      output ctx $
-        T.stripEnd $
-          renderTable supportsAnsi $
-            flip map vmNames $ \vmName ->
-              [ ("name", cs $ vmNameToText vmName),
-                ("status", vmStateToText (Map.lookup vmName runningVms))
-              ]
-                <> maybe [] (\ip -> [("ip", cs (IPv4.encode ip))]) (getIp vmName)
+  let vmStatus = case listedVms of
+        [] -> "no vms configured, no vms running"
+        vmNames -> do
+          T.stripEnd $
+            renderTable supportsAnsi $
+              flip map vmNames $ \vmName ->
+                [ ("name", cs $ vmNameToText vmName),
+                  ("status", vmStateToText (Map.lookup vmName runningVms))
+                ]
+                  <> maybe [] (\ip -> [("ip", cs (IPv4.encode ip))]) (getIp vmName)
+  let tapStatus = if tapRunning then Just "(The tap device 'nixos-compose0' is up.)" else Nothing
+  output ctx $ T.intercalate "\n" $ catMaybes [Just vmStatus, tapStatus]
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do

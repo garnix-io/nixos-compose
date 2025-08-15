@@ -134,9 +134,13 @@ spec = do
             _ <- assertSuccess $ test ctx ["tap"]
             result <- assertSuccess $ test ctx ["status"]
             result ^. #stdout
-              `shouldBe` renderTable
-                False
-                [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+              `shouldBe` T.unlines
+                [ T.stripEnd $
+                    renderTable
+                      False
+                      [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+                      ],
+                  "(The tap device 'nixos-compose0' is up.)"
                 ]
 
       it "shows ip addresses when the tap device is up, when a vm name is given" $ do
@@ -146,9 +150,24 @@ spec = do
             _ <- assertSuccess $ test ctx ["tap"]
             result <- assertSuccess $ test ctx ["status", "server"]
             result ^. #stdout
-              `shouldBe` renderTable
-                False
-                [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+              `shouldBe` T.unlines
+                [ T.stripEnd $
+                    renderTable
+                      False
+                      [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+                      ],
+                  "(The tap device 'nixos-compose0' is up.)"
+                ]
+
+      it "shows when the tap device is up, and no vms are configured or running" $ do
+        withMockContext [] $ \ctx -> do
+          withMockSudo $ \_getMockSudoCalls -> do
+            _ <- assertSuccess $ test ctx ["tap"]
+            result <- assertSuccess $ test ctx ["status"]
+            result ^. #stdout
+              `shouldBe` T.unlines
+                [ "no vms configured, no vms running",
+                  "(The tap device 'nixos-compose0' is up.)"
                 ]
 
 withMockSudo :: (IO String -> IO a) -> IO a
