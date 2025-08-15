@@ -26,6 +26,7 @@ import StdLib
 import System.Directory (doesFileExist)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
+import Table (renderTable)
 import Utils
 import Vde qualified
 
@@ -131,13 +132,11 @@ status ctx args = do
   let listedVms = case args of
         [] -> nubOrd (configuredVms <> Map.keys runningVms)
         args -> args
-  output ctx $ T.intercalate "\n" $ case listedVms of
-    [] -> ["no vms configured, no vms running"]
+  case listedVms of
+    [] -> output ctx "no vms configured, no vms running"
     vmNames -> do
-      flip map vmNames $ \vmName ->
-        vmNameToText vmName
-          <> ": "
-          <> maybe "not running" vmStateToText (Map.lookup vmName runningVms)
+      output ctx $ T.stripEnd $ renderTable $ flip map vmNames $ \vmName ->
+        [("name", vmNameToText vmName), ("status", maybe "not running" vmStateToText (Map.lookup vmName runningVms))]
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do

@@ -22,6 +22,7 @@ executable nixos-compose
       Run
       State
       StdLib
+      Table
       Utils
       Vde
       Version
@@ -83,6 +84,7 @@ test-suite spec
       LoggingSpec
       NetworkingSpec
       SpecHook
+      TableSpec
       TapSpec
       TestUtils
       UpSpec
@@ -99,6 +101,7 @@ test-suite spec
       Run
       State
       StdLib
+      Table
       Utils
       Vde
       Version
