@@ -35,6 +35,7 @@ import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Options (VmName (..))
 import StdLib
+import System.Console.ANSI qualified as ANSI
 import System.Directory
   ( createDirectoryIfMissing,
     doesDirectoryExist,
@@ -42,6 +43,7 @@ import System.Directory
     removeDirectoryRecursive,
   )
 import System.FileLock
+import Table (StyledText, withColor)
 import Utils (filterMapM)
 import Vde qualified
 
@@ -122,10 +124,10 @@ getPid = \case
   Starting {} -> Nothing
   Running {pid} -> Just pid
 
-vmStateToText :: VmState -> Text
+vmStateToText :: VmState -> StyledText
 vmStateToText = \case
-  Starting {} -> "starting"
-  Running {} -> "running"
+  Starting {} -> withColor ANSI.Yellow "starting"
+  Running {} -> withColor ANSI.Green "running"
 
 cleanUpVms :: Context -> State -> IO State
 cleanUpVms ctx state = do

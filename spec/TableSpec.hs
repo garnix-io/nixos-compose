@@ -1,6 +1,7 @@
 module TableSpec where
 
 import StdLib
+import System.Console.ANSI (Color (..))
 import Table
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
@@ -29,7 +30,7 @@ spec = do
       ( cs $
           renderTable
             True
-            [ [("h", "a"), ("g", "foo")],
-              [("h", "b"), ("g", "bar")]
+            [ [("h", "a"), ("g", withColor Green "foo")],
+              [("h", "b"), ("g", withColor Yellow "longer")]
             ]
       )
