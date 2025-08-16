@@ -2,20 +2,30 @@ module Table (renderTable) where
 
 import Data.Text qualified as T
 import StdLib
+import System.Console.ANSI
 
-renderTable :: [[(Text, Text)]] -> Text
-renderTable = \case
+renderTable :: Bool -> [[(Text, Text)]] -> Text
+renderTable useColors = \case
   [] -> ""
   rows@(first : _) ->
-    let headers = fmap fst first
+    let ansi codes t = if useColors then codes <> t <> reset else t
+        headers = fmap fst first
         columnWidths = flip map headers $ \header ->
           max (T.length header) (maximum (map (maybe 0 T.length . lookup header) rows))
         renderLines start char sep end =
-          start
-            <> T.intercalate sep (map (\n -> T.replicate (n + 2) char) columnWidths)
-            <> end
+          ansi
+            lineColor
+            ( start
+                <> T.intercalate sep (map (\n -> T.replicate (n + 2) char) columnWidths)
+                <> end
+            )
         renderRow (zip columnWidths -> row) =
-          "│ " <> T.intercalate " │ " (map (uncurry pad) row) <> " │"
+          ansi lineColor "│"
+            <> " "
+            <> T.intercalate
+              (" " <> ansi lineColor "│" <> " ")
+              (map (uncurry pad) row)
+            <> ansi lineColor " │"
         topLine = [renderLines "┌" "─" "┬" "┐"]
         header = [renderRow headers]
         divider = [renderLines "├" "─" "┼" "┤"]
@@ -31,7 +41,11 @@ renderTable = \case
                 <> bottomLine
             )
 
--- ─│┌┐└┘├┤┬┴┼
+lineColor :: Text
+lineColor = cs (setSGRCode [SetColor Foreground Dull Blue])
+
+reset :: Text
+reset = cs $ setSGRCode [Reset]
 
 pad :: Int -> Text -> Text
 pad n t = t <> T.replicate (n - T.length t) " "

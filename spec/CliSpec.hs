@@ -44,6 +44,7 @@ spec = do
           result <- assertSuccess $ test ctx ["status"]
           result ^. #stdout
             `shouldBe` renderTable
+              False
               [ [("name", "a"), ("status", "running")],
                 [("name", "b"), ("status", "running")]
               ]
@@ -54,6 +55,7 @@ spec = do
           result <- assertSuccess $ test ctx ["status"]
           result ^. #stdout
             `shouldBe` renderTable
+              False
               [ [("name", "a"), ("status", "running")],
                 [("name", "b"), ("status", "not running")]
               ]
@@ -63,6 +65,7 @@ spec = do
           result <- assertSuccess $ test ctx ["status"]
           result ^. #stdout
             `shouldBe` renderTable
+              False
               [ [("name", "a"), ("status", "not running")],
                 [("name", "b"), ("status", "not running")]
               ]
@@ -80,18 +83,21 @@ spec = do
         result <- assertSuccess $ test ctx ["status", "a", "c"]
         result ^. #stdout
           `shouldBe` renderTable
+            False
             [ [("name", "a"), ("status", "running")],
               [("name", "c"), ("status", "running")]
             ]
         result <- assertSuccess $ test ctx ["status", "c", "b"]
         result ^. #stdout
           `shouldBe` renderTable
+            False
             [ [("name", "c"), ("status", "running")],
               [("name", "b"), ("status", "running")]
             ]
         result <- assertSuccess $ test ctx ["status", "b", "d"]
         result ^. #stdout
           `shouldBe` renderTable
+            False
             [ [("name", "b"), ("status", "running")],
               [("name", "d"), ("status", "not running")]
             ]
@@ -102,7 +108,7 @@ spec = do
         stopProcess ctx (Vm "a")
         test ctx ["status", "a"]
           `shouldReturn` TestResult
-            (renderTable [[("name", "a"), ("status", "not running")]])
+            (renderTable False [[("name", "a"), ("status", "not running")]])
             "WARN: cannot find process for vm: a\n"
             ExitSuccess
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
@@ -118,7 +124,7 @@ spec = do
         withMockContext [] $ \ctx -> do
           State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" fakeVmState))
           result <- assertSuccess $ test ctx ["status"]
-          result ^. #stdout `shouldBe` renderTable [[("name", "other"), ("status", "running")]]
+          result ^. #stdout `shouldBe` renderTable False [[("name", "other"), ("status", "running")]]
 
       it "prints running vms from other directories with configured vms" $ do
         withMockContext ["a"] $ \ctx -> do
@@ -126,6 +132,7 @@ spec = do
           result <- assertSuccess $ test ctx ["status"]
           result ^. #stdout
             `shouldBe` renderTable
+              False
               [ [("name", "a"), ("status", "not running")],
                 [("name", "other"), ("status", "running")]
               ]

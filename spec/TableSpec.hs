@@ -21,4 +21,15 @@ spec = do
         ]
   forM_ (zip [1 :: Int ..] testCases) $ \(i, testCase) -> do
     it ("renders table-" <> show i) $ do
-      defaultGolden ("table-" <> show i) (cs $ renderTable testCase)
+      defaultGolden ("table-" <> show i) (cs $ renderTable False testCase)
+
+  it "uses colors" $ do
+    defaultGolden
+      "table-colors"
+      ( cs $
+          renderTable
+            True
+            [ [("h", "a"), ("g", "foo")],
+              [("h", "b"), ("g", "bar")]
+            ]
+      )

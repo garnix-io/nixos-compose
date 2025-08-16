@@ -23,7 +23,9 @@ import Net.IPv4 qualified as IPv4
 import Options (AllOrSomeVms (..), DryRunFlag, Verbosity, VmName (..))
 import State
 import StdLib
+import System.Console.ANSI qualified as ANSI
 import System.Directory (doesFileExist)
+import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
 import Table (renderTable)
@@ -135,8 +137,14 @@ status ctx args = do
   case listedVms of
     [] -> output ctx "no vms configured, no vms running"
     vmNames -> do
-      output ctx $ T.stripEnd $ renderTable $ flip map vmNames $ \vmName ->
-        [("name", vmNameToText vmName), ("status", maybe "not running" vmStateToText (Map.lookup vmName runningVms))]
+      supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
+      output ctx $
+        T.stripEnd $
+          renderTable supportsAnsi $
+            flip map vmNames $ \vmName ->
+              [ ("name", vmNameToText vmName),
+                ("status", maybe "not running" vmStateToText (Map.lookup vmName runningVms))
+              ]
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do
