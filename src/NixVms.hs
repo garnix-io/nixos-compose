@@ -201,38 +201,31 @@ streamHandles ctx vm input output = do
   (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> removeNonPrintableChars (stripAnsiEscapeCodes chunk)
   streamHandles ctx vm input output
 
-sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Text -> IO o
-sshIntoVmImpl ctx vmName command = do
+sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Port -> Text -> IO o
+sshIntoVmImpl ctx vmName port command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
-  vmState <- State.readVmState ctx vmName
-  case vmState of
-    Building {} -> do
-      abort ctx "cannot ssh into a building vm"
-    Booting {} -> do
-      abort ctx "cannot ssh into a booting vm"
-    Running {port} -> do
-      Cradle.run $
-        Cradle.cmd "ssh"
-          & Cradle.setStdinHandle (ctx ^. #stdin)
-          & Cradle.addArgs
-            [ "-i",
-              cs vmKeyPath,
-              "-l",
-              "vmuser",
-              "-o",
-              "StrictHostKeyChecking=no",
-              "-o",
-              "UserKnownHostsFile=/dev/null",
-              "-o",
-              "ConnectTimeout=2",
-              "-p",
-              cs (show port),
-              "-q",
-              "localhost",
-              "--",
-              command
-            ]
+  Cradle.run $
+    Cradle.cmd "ssh"
+      & Cradle.setStdinHandle (ctx ^. #stdin)
+      & Cradle.addArgs
+        [ "-i",
+          cs vmKeyPath,
+          "-l",
+          "vmuser",
+          "-o",
+          "StrictHostKeyChecking=no",
+          "-o",
+          "UserKnownHostsFile=/dev/null",
+          "-o",
+          "ConnectTimeout=2",
+          "-p",
+          cs (show port),
+          "-q",
+          "localhost",
+          "--",
+          command
+        ]
 
-updateVmHostsEntryImpl :: Context -> VmName -> Hostname -> IPv4 -> IO ()
-updateVmHostsEntryImpl ctx vmName hostname ip = do
-  sshIntoVmImpl ctx vmName $ "update-vm-hosts-entry " <> hostnameToText hostname <> " " <> IPv4.encode ip
+updateVmHostsEntryImpl :: Context -> VmName -> Port -> Hostname -> IPv4 -> IO ()
+updateVmHostsEntryImpl ctx vmName port hostname ip = do
+  sshIntoVmImpl ctx vmName port $ "update-vm-hosts-entry " <> hostnameToText hostname <> " " <> IPv4.encode ip

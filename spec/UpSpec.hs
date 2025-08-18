@@ -148,7 +148,7 @@ spec = do
                )
             & (#nixVms . #sshIntoVm)
             .~ SshIntoVm
-              ( \_ctx _vmName _command -> do
+              ( \_ctx _vmName _port _command -> do
                   threadDelay 10_000
                   Cradle.run $
                     Cradle.cmd "bash"

@@ -77,7 +77,7 @@ up ctx verbosity upOptions = do
             System.Process.getPid ph
               >>= maybe (impossible ctx "qemu process has no pid") pure
           pure (ph, pid, port)
-        waitForVm ctx vmName ph
+        waitForVm ctx vmName port ph
         State.writeVmState ctx vmName (Running {pid, port, ip})
         (ctx ^. #logger . #clearPhase) vmName
   updateVmHostEntries ctx
@@ -110,15 +110,15 @@ down ctx vmNames = do
           signalProcess sigKILL pid
           removeVm ctx vmName
 
-waitForVm :: Context -> VmName -> ProcessHandle -> IO ()
-waitForVm ctx vmName ph = do
-  (StdoutRaw _, StderrRaw _, sshExitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName "true"
+waitForVm :: Context -> VmName -> Port -> ProcessHandle -> IO ()
+waitForVm ctx vmName port ph = do
+  (StdoutRaw _, StderrRaw _, sshExitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port "true"
   case sshExitCode of
     ExitSuccess -> pure ()
     ExitFailure _ -> do
       vmScriptExitCode <- getProcessExitCode ph
       case vmScriptExitCode of
-        Nothing -> waitForVm ctx vmName ph
+        Nothing -> waitForVm ctx vmName port ph
         Just vmScriptExitCode -> do
           stdout <- getVmFilePath ctx vmName "stdout.log" >>= T.readFile
           stderr <- getVmFilePath ctx vmName "stderr.log" >>= T.readFile
@@ -130,8 +130,15 @@ waitForVm ctx vmName ph = do
 
 ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
-  exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName command
-  throwIO exitCode
+  vmState <- State.readVmState ctx vmName
+  case vmState of
+    Building {} -> do
+      abort ctx "cannot ssh into a building vm"
+    Booting {} -> do
+      abort ctx "cannot ssh into a building vm"
+    Running {port} -> do
+      exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port command
+      throwIO exitCode
 
 status :: Context -> [VmName] -> IO ()
 status ctx args = do
@@ -161,14 +168,18 @@ ip ctx vm = modifyState_ ctx $ \state -> do
 
 updateVmHostEntries :: Context -> IO ()
 updateVmHostEntries ctx = do
-  runningVms <- Map.keys <$> listRunningVms ctx
-  forM_ runningVms $ \targetVmName -> do
+  runningVms <- listRunningVms ctx
+  forM_ (Map.keys runningVms) $ \targetVmName -> do
     case parseHostname $ vmNameToText targetVmName of
       Nothing -> info ctx $ "WARN: \"" <> vmNameToText targetVmName <> "\" is not a valid hostname. It will not be added to /etc/hosts."
       Just targetHostname -> do
         targetIp <- (^. #ip) <$> readVmState ctx targetVmName
-        forM_ runningVms $ \updatingVmName -> do
-          updateVmHostsEntry (nixVms ctx) ctx updatingVmName targetHostname targetIp
+        forM_ (Map.toList runningVms) $ \(updatingVmName, updatingVmState) -> do
+          case updatingVmState of
+            Building {} -> pure ()
+            Booting {} -> pure ()
+            Running {port} -> do
+              updateVmHostsEntry (nixVms ctx) ctx updatingVmName port targetHostname targetIp
 
 tap :: Context -> DryRunFlag -> IO ()
 tap ctx dryRunFlag = do
