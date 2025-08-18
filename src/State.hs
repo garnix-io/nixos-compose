@@ -24,6 +24,7 @@ module State
 where
 
 import Context
+import Context.Utils
 import Data.Aeson
 import Data.ByteString.Lazy qualified
 import Data.Map (Map)
@@ -43,7 +44,6 @@ import System.Directory
 import System.FileLock
 import Utils (filterMapM)
 import Vde qualified
-import Context.Utils
 
 -- global state
 
@@ -73,7 +73,7 @@ modifyState ctx action = do
       if contents == ""
         then pure emptyState
         else either (impossible ctx . cs) pure (eitherDecode' (cs contents) :: Either String State)
-    cleanedUp <- cleanUpVms ctx parsed
+    cleanedUp <- cleanUpVms ctx parsed >>= cleanUpVdeSwitch ctx
     (next, a) <- action cleanedUp
     next <- cleanUpVdeSwitch ctx next
     Data.ByteString.Lazy.writeFile file (encode (next :: State))
