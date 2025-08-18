@@ -124,10 +124,11 @@ getPid = \case
   Starting {} -> Nothing
   Running {pid} -> Just pid
 
-vmStateToText :: VmState -> StyledText
+vmStateToText :: Maybe VmState -> StyledText
 vmStateToText = \case
-  Starting {} -> withColor ANSI.Yellow "starting"
-  Running {} -> withColor ANSI.Green "running"
+  Nothing -> withColor ANSI.Blue "not running"
+  Just (Starting {}) -> withColor ANSI.Yellow "starting"
+  Just (Running {}) -> withColor ANSI.Green "running"
 
 cleanUpVms :: Context -> State -> IO State
 cleanUpVms ctx state = do

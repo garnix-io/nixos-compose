@@ -28,7 +28,7 @@ import System.Directory (doesFileExist)
 import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
-import Table (renderTable, unstyledText, withColor)
+import Table (renderTable, unstyledText)
 import Utils
 import Vde qualified
 
@@ -56,7 +56,7 @@ up ctx verbosity upOptions = do
         output ctx $
           vmNameToText vmName
             <> ": already "
-            <> unstyledText (vmStateToText existing)
+            <> unstyledText (vmStateToText (Just existing))
       Right () -> do
         (ph, pid, port) <- removeVmWhenFailing ctx vmName $ do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
@@ -147,12 +147,7 @@ status ctx args = do
           renderTable supportsAnsi $
             flip map vmNames $ \vmName ->
               [ ("name", cs $ vmNameToText vmName),
-                ( "status",
-                  maybe
-                    (withColor ANSI.Blue "not running")
-                    vmStateToText
-                    (Map.lookup vmName runningVms)
-                )
+                ("status", vmStateToText (Map.lookup vmName runningVms))
               ]
 
 ip :: Context -> VmName -> IO ()
