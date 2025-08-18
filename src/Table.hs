@@ -64,14 +64,11 @@ renderTable useColors = \case
         body = map (renderRow . map snd) rows
         bottomLine = [renderLines "└" "─" "┴" "┘"]
      in T.unlines $
-          map
-            T.stripEnd
-            ( topLine
-                <> header
-                <> divider
-                <> body
-                <> bottomLine
-            )
+          topLine
+            <> header
+            <> divider
+            <> body
+            <> bottomLine
 
 lineColor :: Text
 lineColor = cs (setSGRCode [SetColor Foreground Dull Blue])
