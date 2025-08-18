@@ -2,6 +2,8 @@ module CliSpec where
 
 import Context
 import Data.Maybe (fromJust)
+import Data.String.Interpolate (i)
+import Data.String.Interpolate.Util (unindent)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import State (getPid, readVmState)
@@ -81,7 +83,16 @@ spec = do
     it "lists all configured vms" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
         result <- assertSuccess $ test ctx ["list"]
-        result ^. #stdout `shouldBe` "configured vms: a, b, c\n"
+        result ^. #stdout
+          `shouldBe` cs
+            ( unindent
+                [i|
+                  configured vms:
+                    - a
+                    - b
+                    - c
+                |]
+            )
 
     it "has a nice message when no vms are configured" $ do
       withMockContext [] $ \ctx -> do

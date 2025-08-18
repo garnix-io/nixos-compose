@@ -59,7 +59,7 @@ spec = do
           }
         |]
       result <- assertSuccess $ test ctx ["list"]
-      result ^. #stdout `shouldBe` "configured vms: a, b, c\n"
+      result ^. #stdout `shouldBe` "configured vms:\n  - a\n  - b\n  - c\n"
 
     it "lists vms when there's no `nixosConfigurations` field" $ \ctx -> do
       writeFile

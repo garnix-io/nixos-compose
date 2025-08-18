@@ -33,7 +33,7 @@ list ctx = do
   vms <- listVms (nixVms ctx) ctx
   output ctx $ case vms of
     [] -> "no vms configured"
-    vms -> "configured vms: " <> T.intercalate ", " (map vmNameToText vms)
+    vms -> "configured vms:\n" <> T.intercalate "\n" (map (("  - " <>) . vmNameToText) vms)
 
 up :: Context -> Verbosity -> AllOrSomeVms -> IO ()
 up ctx verbosity upOptions = do
