@@ -206,8 +206,10 @@ sshIntoVmImpl ctx vmName command = do
   vmKeyPath <- getVmFilePath ctx vmName "vmkey"
   vmState <- State.readVmState ctx vmName
   case vmState of
-    Starting {} -> do
-      abort ctx "cannot ssh into a starting vm"
+    Building {} -> do
+      abort ctx "cannot ssh into a building vm"
+    Booting {} -> do
+      abort ctx "cannot ssh into a booting vm"
     Running {port} -> do
       Cradle.run $
         Cradle.cmd "ssh"

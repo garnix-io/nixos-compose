@@ -50,7 +50,7 @@ up ctx verbosity upOptions = do
     Some vmNames -> pure vmNames
   forM_ vmNames $ \vmName -> do
     ip <- getNextIp ctx
-    existing <- claimVm ctx vmName $ Starting {ip}
+    existing <- claimVm ctx vmName $ Building {ip}
     case existing of
       Left existing ->
         output ctx $
@@ -58,6 +58,7 @@ up ctx verbosity upOptions = do
             <> ": already "
             <> unstyledText (vmStateToText (Just existing))
       Right () -> do
+        (ctx ^. #logger . #setPhase) vmName "building"
         (ph, pid, port) <- removeVmWhenFailing ctx vmName $ do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
           exists <- doesFileExist vmKeyPath
@@ -67,17 +68,17 @@ up ctx verbosity upOptions = do
             runWithErrorHandling ctx $
               Cradle.cmd "ssh-keygen"
                 & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-          (ctx ^. #logger . #setPhase) vmName "building"
           (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
-          (ctx ^. #logger . #setPhase) vmName "starting"
+          State.writeVmState ctx vmName $ Booting {ip}
+          (ctx ^. #logger . #setPhase) vmName "booting"
           ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
           registerProcess ctx (Vm vmName) ph
           pid <-
             System.Process.getPid ph
               >>= maybe (impossible ctx "qemu process has no pid") pure
           pure (ph, pid, port)
-        State.writeVmState ctx vmName (Running {pid, port, ip})
         waitForVm ctx vmName ph
+        State.writeVmState ctx vmName (Running {pid, port, ip})
         (ctx ^. #logger . #clearPhase) vmName
   updateVmHostEntries ctx
 
@@ -102,7 +103,8 @@ down ctx vmNames = do
     case Map.lookup vmName (state ^. #vms) of
       Nothing -> output ctx $ vmNameToText vmName <> " is not running, nothing to do"
       Just vmState -> case vmState of
-        Starting {} -> abort ctx $ vmNameToText vmName <> ": building, cannot stop a building vm"
+        Building {} -> abort ctx $ vmNameToText vmName <> ": building, cannot stop a building vm"
+        Booting {} -> abort ctx $ vmNameToText vmName <> ": booting, cannot stop a booting vm"
         Running {pid} -> do
           output ctx $ "stopping " <> vmNameToText vmName
           signalProcess sigKILL pid

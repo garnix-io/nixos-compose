@@ -22,7 +22,7 @@ spec = do
   it "starts a vm" $ do
     withMockContext ["a"] $ \ctx -> do
       result <- assertSuccess $ test ctx ["up", "a"]
-      result ^. #stderr `shouldBe` "a: building...\na: done building\na: starting...\na: done starting\n"
+      result ^. #stderr `shouldBe` "a: building...\na: done building\na: booting...\na: done booting\n"
 
   context "when no vm names are given" $ do
     it "starts all vms" $ do
@@ -50,9 +50,9 @@ spec = do
               test ctx ["up", "a"]
             waitFor $ do
               vmState <- readVmState ctx "a"
-              vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
-              test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
-              test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "starting")]]) "" ExitSuccess
+              vmState `shouldBe` Building {ip = IPv4.fromOctets 10 0 0 2}
+              test ctx ["up", "a"] `shouldReturn` TestResult "a: already building\n" "" ExitSuccess
+              test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "building")]]) "" ExitSuccess
               test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
       it "handles attempts to stop building vms gracefully" $ do
@@ -81,9 +81,9 @@ spec = do
             test ctx ["up", "a"]
           waitFor $ do
             vmState <- readVmState ctx "a"
-            vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
-            test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
-            test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "starting")]]) "" ExitSuccess
+            vmState `shouldBe` Booting {ip = IPv4.fromOctets 10 0 0 2}
+            test ctx ["up", "a"] `shouldReturn` TestResult "a: already booting\n" "" ExitSuccess
+            test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "booting")]]) "" ExitSuccess
             test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
   describe "when nix evaluation fails" $ do
@@ -163,7 +163,7 @@ spec = do
             ( T.unlines
                 [ "a: building...",
                   "a: done building",
-                  "a: starting...",
+                  "a: booting...",
                   "VM failed to start:",
                   "",
                   "test stdout",
@@ -180,7 +180,7 @@ spec = do
             ( T.unlines
                 [ "a: building...",
                   "a: done building",
-                  "a: starting...",
+                  "a: booting...",
                   "VM failed to start:",
                   "",
                   "test stdout",
