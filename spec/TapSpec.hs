@@ -80,7 +80,7 @@ spec = do
               "Would run the following commands:\n\n"
               ExitSuccess
 
-    it "bug" $ do
+    it "prints correct error message when vms have to be cleaned up" $ do
       withMockContext ["server"] $ \ctx -> do
         withMockSudo $ \_ -> do
           _ <- assertSuccess $ test ctx ["up", "server"]
