@@ -23,9 +23,12 @@ import Net.IPv4 qualified as IPv4
 import Options (AllOrSomeVms (..), DryRunFlag, Verbosity, VmName (..))
 import State
 import StdLib
+import System.Console.ANSI qualified as ANSI
 import System.Directory (doesFileExist)
+import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
+import Table (renderTable, unstyledText)
 import Utils
 import Vde qualified
 
@@ -49,7 +52,11 @@ up ctx verbosity upOptions = do
     ip <- getNextIp ctx
     existing <- claimVm ctx vmName $ Starting {ip}
     case existing of
-      Left existing -> output ctx $ vmNameToText vmName <> ": already " <> vmStateToText existing
+      Left existing ->
+        output ctx $
+          vmNameToText vmName
+            <> ": already "
+            <> unstyledText (vmStateToText (Just existing))
       Right () -> do
         (ph, pid, port) <- removeVmWhenFailing ctx vmName $ do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
@@ -131,13 +138,17 @@ status ctx args = do
   let listedVms = case args of
         [] -> nubOrd (configuredVms <> Map.keys runningVms)
         args -> args
-  output ctx $ T.intercalate "\n" $ case listedVms of
-    [] -> ["no vms configured, no vms running"]
+  case listedVms of
+    [] -> output ctx "no vms configured, no vms running"
     vmNames -> do
-      flip map vmNames $ \vmName ->
-        vmNameToText vmName
-          <> ": "
-          <> maybe "not running" vmStateToText (Map.lookup vmName runningVms)
+      supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
+      output ctx $
+        T.stripEnd $
+          renderTable supportsAnsi $
+            flip map vmNames $ \vmName ->
+              [ ("name", cs $ vmNameToText vmName),
+                ("status", vmStateToText (Map.lookup vmName runningVms))
+              ]
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do

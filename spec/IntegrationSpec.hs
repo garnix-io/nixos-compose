@@ -13,6 +13,7 @@ import State (getPid, readVmState)
 import StdLib
 import System.Directory (copyFile, doesDirectoryExist, getCurrentDirectory, listDirectory)
 import System.IO (SeekMode (..), hSeek)
+import Table (renderTable)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
 import Test.Mockery.Directory (inTempDirectory)
@@ -77,7 +78,7 @@ spec = do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["ssh", "server", "hostname"])) `shouldReturn` "server\n"
-      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
+      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "running")]]
 
     it "has nice output when starting vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
@@ -146,10 +147,10 @@ spec = do
     it "can stop vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["up", "server"]
-      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: running\n"
+      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "running")]]
       state <- readVmState ctx "server"
       _ <- assertSuccess $ test ctx ["down", "server"]
-      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` "server: not running\n"
+      (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "not running")]]
       exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))
       when exist $ do
         status <- do

@@ -144,6 +144,9 @@ withMockContext vmNames action = do
           }
   withContext mockNixVms action
 
+runningVms :: Context -> IO [VmName]
+runningVms ctx = Map.keys <$> State.listRunningVms ctx
+
 waitFor :: IO a -> IO a
 waitFor action = do
   startTime <- getMonotonicTime

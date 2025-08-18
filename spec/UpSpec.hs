@@ -13,22 +13,22 @@ import State (VmState (..), getVmFilePath, readState, readVmState)
 import StdLib
 import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
+import Table (renderTable)
 import Test.Hspec
 import TestUtils
 
 spec :: Spec
 spec = do
   it "starts a vm" $ do
-      withMockContext ["a"] $ \ctx -> do
-        result <- assertSuccess $ test ctx ["up", "a"]
-        result ^. #stderr `shouldBe` "a: building...\na: done building\na: starting...\na: done starting\n"
+    withMockContext ["a"] $ \ctx -> do
+      result <- assertSuccess $ test ctx ["up", "a"]
+      result ^. #stderr `shouldBe` "a: building...\na: done building\na: starting...\na: done starting\n"
 
   context "when no vm names are given" $ do
     it "starts all vms" $ do
       withMockContext ["a", "b", "c"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up"]
-        result <- assertSuccess $ test ctx ["status"]
-        result ^. #stdout `shouldBe` "a: running\nb: running\nc: running\n"
+        runningVms ctx `shouldReturn` ["a", "b", "c"]
 
     it "gives a nice message when no vms are defined" $ do
       withMockContext [] $ \ctx -> do
@@ -52,7 +52,7 @@ spec = do
               vmState <- readVmState ctx "a"
               vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
               test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
-              test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
+              test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "starting")]]) "" ExitSuccess
               test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
       it "handles attempts to stop building vms gracefully" $ do
@@ -83,7 +83,7 @@ spec = do
             vmState <- readVmState ctx "a"
             vmState `shouldBe` Starting {ip = IPv4.fromOctets 10 0 0 2}
             test ctx ["up", "a"] `shouldReturn` TestResult "a: already starting\n" "" ExitSuccess
-            test ctx ["status", "a"] `shouldReturn` TestResult "a: starting\n" "" ExitSuccess
+            test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "starting")]]) "" ExitSuccess
             test ctx ["ip", "a"] `shouldReturn` TestResult "10.0.0.2\n" "" ExitSuccess
 
   describe "when nix evaluation fails" $ do
