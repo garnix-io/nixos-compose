@@ -7,6 +7,8 @@ import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
 import Data.List (foldl')
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
@@ -24,7 +26,7 @@ spec = do
   it "starts a vm" $ do
     withMockContext ["a"] $ \ctx -> do
       result <- assertSuccess $ test ctx ["up", "a"]
-      result ^. #stderr `shouldBe` "a: building...\na: done building\na: starting...\na: done starting\n"
+      result ^. #stderr `shouldBe` "a: building...\na: done building\na: booting...\na: done booting\n"
 
   it "starts vms in parallel" $ do
     let vmNames = ["a", "b", "c"]
@@ -53,17 +55,19 @@ spec = do
             }
     withContext mockNixVms $ \ctx -> do
       result <- assertSuccess $ test ctx ["up"]
-      groupBySorted [3, 6, 3] (T.lines $ result ^. #stderr)
-        `shouldBe` [ ["a: building...", "b: building...", "c: building..."],
-                     [ "a: done building",
-                       "a: starting...",
-                       "b: done building",
-                       "b: starting...",
-                       "c: done building",
-                       "c: starting..."
-                     ],
-                     ["a: done starting", "b: done starting", "c: done starting"]
-                   ]
+      groupIntoSets [3, 6, 3] (T.lines $ result ^. #stderr)
+        `shouldBe` map
+          Set.fromList
+          [ ["a: building...", "b: building...", "c: building..."],
+            [ "a: done building",
+              "a: booting...",
+              "b: done building",
+              "b: booting...",
+              "c: done building",
+              "c: booting..."
+            ],
+            ["a: done booting", "b: done booting", "c: done booting"]
+          ]
 
   context "when no vm names are given" $ do
     it "starts all vms" $ do
@@ -254,13 +258,13 @@ waitBarrier Barrier {target, signal, count} = do
     pure new
   readMVar signal
 
-groupBySorted :: (Ord a) => [Int] -> [a] -> [[a]]
-groupBySorted idxs list =
+groupIntoSets :: (Ord a) => [Int] -> [a] -> [Set a]
+groupIntoSets idxs list =
   let (groups, remaining) =
         foldl'
           ( \(groups, remaining) n ->
               ( groups
-                  <> [sort (take n remaining)],
+                  <> [Set.fromList (take n remaining)],
                 drop n remaining
               )
           )
@@ -268,4 +272,4 @@ groupBySorted idxs list =
           idxs
    in case remaining of
         [] -> groups
-        _ -> error "groupBySorted: did not consume entire input list"
+        _ -> error "groupIntoSets: did not consume entire input list"
