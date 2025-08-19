@@ -53,8 +53,8 @@ up ctx verbosity upOptions = do
 
   Ki.scoped $ \scope -> do
     forM_ vmNames $ \vmName -> do
+      ip <- getNextIp ctx
       Ki.fork scope $ do
-        ip <- getNextIp ctx
         existing <- claimVm ctx vmName $ Building {ip}
         case existing of
           Left existing ->
