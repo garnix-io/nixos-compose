@@ -1,8 +1,9 @@
 Missing: COMMAND
 
-Usage: nixos-compose [--version] COMMAND
+Usage: nixos-compose COMMAND
 
 Available options:
+  -h,--help                Show this help text
   --version                Show version (unknown) and exit
 
 Available commands:
