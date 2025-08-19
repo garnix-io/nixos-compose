@@ -130,7 +130,7 @@ withMockContext vmNames action = do
                         std_err = NoStream
                       }
                 pure ph,
-            sshIntoVm = SshIntoVm $ \ctx vmName command -> do
+            sshIntoVm = SshIntoVm $ \ctx vmName _port command -> do
               unless (vmName `elem` vmNames) $ do
                 error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
               _state <- State.readVmState ctx vmName
@@ -139,7 +139,7 @@ withMockContext vmNames action = do
                   Cradle.cmd "bash"
                     & Cradle.addArgs ["-c", command]
                     & Cradle.setWorkingDir tempDir,
-            updateVmHostsEntry = \ctx vmName hostName ip -> do
+            updateVmHostsEntry = \ctx vmName _port hostName ip -> do
               updateTestState ctx $ pure . (#vmHostEntries %~ Map.insert (vmName, hostName) ip)
           }
   withContext mockNixVms action

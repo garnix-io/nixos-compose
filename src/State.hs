@@ -108,7 +108,10 @@ cleanUpVdeSwitch ctx state =
 -- * vm state
 
 data VmState
-  = Starting
+  = Building
+      { ip :: IPv4
+      }
+  | Booting
       { ip :: IPv4
       }
   | Running
@@ -121,13 +124,15 @@ data VmState
 
 getPid :: VmState -> Maybe ProcessID
 getPid = \case
-  Starting {} -> Nothing
+  Building {} -> Nothing
+  Booting {} -> Nothing
   Running {pid} -> Just pid
 
 vmStateToText :: Maybe VmState -> StyledText
 vmStateToText = \case
   Nothing -> withColor ANSI.Blue "not running"
-  Just (Starting {}) -> withColor ANSI.Yellow "starting"
+  Just (Building {}) -> withColor ANSI.Yellow "building"
+  Just (Booting {}) -> withColor ANSI.Yellow "booting"
   Just (Running {}) -> withColor ANSI.Green "running"
 
 cleanUpVms :: Context -> State -> IO State
@@ -137,7 +142,8 @@ cleanUpVms ctx state = do
   where
     isRunning :: VmName -> VmState -> IO Bool
     isRunning vmName = \case
-      Starting {} -> pure True
+      Building {} -> pure True
+      Booting {} -> pure True
       Running {pid} -> do
         isRunning <- doesDirectoryExist $ "/proc/" <> show (pid :: ProcessID)
         unless isRunning $ do
