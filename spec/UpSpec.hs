@@ -188,3 +188,10 @@ spec = do
                 ]
             )
             (ExitFailure 1)
+
+    it "cleans up the state.json file" $ do
+      withMockContext ["a"] $ \(failingRunVm 0 -> ctx) -> do
+        _ <- test ctx ["up", "a"]
+        state <- readState ctx
+        state ^. #vms `shouldBe` mempty
+        state ^. #vde `shouldBe` Nothing

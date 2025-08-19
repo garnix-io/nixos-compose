@@ -59,7 +59,7 @@ up ctx verbosity upOptions = do
             <> unstyledText (vmStateToText (Just existing))
       Right () -> do
         (ctx ^. #logger . #setPhase) vmName "building"
-        (ph, pid, port) <- removeVmWhenFailing ctx vmName $ do
+        (pid, port) <- removeVmWhenFailing ctx vmName $ do
           vmKeyPath <- getVmFilePath ctx vmName "vmkey"
           exists <- doesFileExist vmKeyPath
           when exists $ do
@@ -76,8 +76,8 @@ up ctx verbosity upOptions = do
           pid <-
             System.Process.getPid ph
               >>= maybe (impossible ctx "qemu process has no pid") pure
-          pure (ph, pid, port)
-        waitForVm ctx vmName port ph
+          waitForVm ctx vmName port ph
+          pure (pid, port)
         State.writeVmState ctx vmName (Running {pid, port, ip})
         (ctx ^. #logger . #clearPhase) vmName
   updateVmHostEntries ctx
