@@ -5,7 +5,6 @@ import Control.Concurrent (MVar, modifyMVar_, myThreadId, newEmptyMVar, newMVar,
 import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
-import Data.List (foldl')
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -258,17 +257,9 @@ waitBarrier Barrier {target, signal, count} = do
   readMVar signal
 
 groupIntoSets :: (Ord a) => [Int] -> [a] -> [Set a]
-groupIntoSets idxs list =
-  let (groups, remaining) =
-        foldl'
-          ( \(groups, remaining) n ->
-              ( groups
-                  <> [Set.fromList (take n remaining)],
-                drop n remaining
-              )
-          )
-          ([], list)
-          idxs
-   in case remaining of
-        [] -> groups
-        _ -> error "groupIntoSets: did not consume entire input list"
+groupIntoSets ns list = case (ns, list) of
+  (n : ns, list) ->
+    let (group, rest) = splitAt n list
+     in Set.fromList group : groupIntoSets ns rest
+  ([], []) -> []
+  _ -> error "groupIntoSets: didn't get right amount of elements"
