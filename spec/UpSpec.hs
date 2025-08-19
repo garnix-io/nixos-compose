@@ -1,8 +1,7 @@
 module UpSpec where
 
 import Context
-import Control.Concurrent (MVar, myThreadId, newEmptyMVar, newMVar, putMVar, readMVar, threadDelay, throwTo)
-import Control.Concurrent.MVar (modifyMVar_)
+import Control.Concurrent (MVar, modifyMVar_, myThreadId, newEmptyMVar, newMVar, putMVar, readMVar, threadDelay, throwTo)
 import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
