@@ -1,10 +1,12 @@
 module UpSpec where
 
 import Context
-import Control.Concurrent (myThreadId, newEmptyMVar, putMVar, readMVar, threadDelay, throwTo)
+import Control.Concurrent (MVar, modifyMVar_, myThreadId, newEmptyMVar, newMVar, putMVar, readMVar, threadDelay, throwTo)
 import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
+import Data.Set (Set)
+import Data.Set qualified as Set
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
@@ -23,6 +25,47 @@ spec = do
     withMockContext ["a"] $ \ctx -> do
       result <- assertSuccess $ test ctx ["up", "a"]
       result ^. #stderr `shouldBe` "a: building...\na: done building\na: booting...\na: done booting\n"
+
+  it "starts vms in parallel" $ do
+    let vmNames = ["a", "b", "c"]
+    buildVmBarrier <- newBarrier (length vmNames)
+    sshVmBarrier <- newBarrier (length vmNames)
+    let mockNixVms =
+          NixVms
+            { listVms = \_ctx -> pure vmNames,
+              buildVmScript = \_ctx _vmName _ip -> do
+                waitBarrier buildVmBarrier
+                pure ("/fake-vm-script", 1234),
+              runVm =
+                \_ctx _verbosity _vmName _vmScript -> do
+                  (_, _, _, ph) <- do
+                    createProcess
+                      (proc "sleep" ["inf"])
+                        { std_in = NoStream,
+                          std_out = NoStream,
+                          std_err = NoStream
+                        }
+                  pure ph,
+              sshIntoVm = SshIntoVm $ \_ctx _vmName _port _command -> do
+                waitBarrier sshVmBarrier
+                Cradle.run $ Cradle.cmd "true",
+              updateVmHostsEntry = \_ctx _vmName _port _hostName _ip -> pure ()
+            }
+    withContext mockNixVms $ \ctx -> do
+      result <- assertSuccess $ test ctx ["up"]
+      groupIntoSets [3, 6, 3] (T.lines $ result ^. #stderr)
+        `shouldBe` map
+          Set.fromList
+          [ ["a: building...", "b: building...", "c: building..."],
+            [ "a: done building",
+              "a: booting...",
+              "b: done building",
+              "b: booting...",
+              "c: done building",
+              "c: booting..."
+            ],
+            ["a: done booting", "b: done booting", "c: done booting"]
+          ]
 
   context "when no vm names are given" $ do
     it "starts all vms" $ do
@@ -195,3 +238,28 @@ spec = do
         state <- readState ctx
         state ^. #vms `shouldBe` mempty
         state ^. #vde `shouldBe` Nothing
+
+data Barrier = Barrier
+  { target :: Int,
+    signal :: MVar (),
+    count :: MVar Int
+  }
+
+newBarrier :: Int -> IO Barrier
+newBarrier target = Barrier target <$> newEmptyMVar <*> newMVar 0
+
+waitBarrier :: Barrier -> IO ()
+waitBarrier Barrier {target, signal, count} = do
+  modifyMVar_ count $ \c -> do
+    let new = c + 1
+    when (new == target) $ putMVar signal ()
+    pure new
+  readMVar signal
+
+groupIntoSets :: (Ord a) => [Int] -> [a] -> [Set a]
+groupIntoSets ns list = case (ns, list) of
+  (n : ns, list) ->
+    let (group, rest) = splitAt n list
+     in Set.fromList group : groupIntoSets ns rest
+  ([], []) -> []
+  _ -> error "groupIntoSets: didn't get right amount of elements"
