@@ -88,8 +88,8 @@ spec = do
         `shouldBe` T.unlines
           [ "server: building...",
             "server: done building",
-            "server: starting...",
-            "server: done starting"
+            "server: booting...",
+            "server: done booting"
           ]
 
     it "has nice output when the nix build fails" $ \ctx -> do
