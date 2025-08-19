@@ -28,12 +28,18 @@ newtype Options = Options Command
 
 instance Parseable Options where
   parser =
-    version
-      <*> (Options <$> parser)
+    (Options <$> parser)
+      <**> helper
+      <**> version
 
 version :: Parser (a -> a)
 version =
-  infoOption (cs Version.version) (long "version" <> help ("Show version (" <> cs Version.version <> ") and exit"))
+  infoOption
+    (cs Version.version)
+    ( long "version"
+        <> help ("Show version (" <> cs Version.version <> ") and exit")
+        <> hidden
+    )
 
 data Command
   = List
