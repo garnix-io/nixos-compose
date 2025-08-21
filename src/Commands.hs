@@ -16,13 +16,14 @@ import Cradle
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
+import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import GHC.Conc (atomically)
 import Ki qualified
 import Logging
 import Net.IPv4 qualified as IPv4
-import Options (AllOrSomeVms (..), DryRunFlag, Verbosity, VmName (..))
+import Options (AllOrSomeVms (..), DryRunFlag, Verbosity (..), VmName (..))
 import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
@@ -76,7 +77,7 @@ up ctx verbosity upOptions = do
               (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
               State.writeVmState ctx vmName $ Booting {ip}
               (ctx ^. #logger . #setPhase) vmName "booting"
-              ph <- (ctx ^. #nixVms . #runVm) ctx verbosity vmName vmScript
+              ph <- (ctx ^. #nixVms . #runVm) ctx (verbosityToLogLine verbosity) vmName vmScript
               registerProcess ctx (Vm vmName) ph
               pid <-
                 System.Process.getPid ph
@@ -87,6 +88,15 @@ up ctx verbosity upOptions = do
             (ctx ^. #logger . #clearPhase) vmName
     atomically $ Ki.awaitAll scope
     updateVmHostEntries ctx
+
+verbosityToLogLine :: Verbosity -> Maybe (Text -> IO ())
+verbosityToLogLine =
+  \case
+    DefaultVerbosity -> Nothing
+    Verbose -> Just (T.hPutStrLn System.IO.stderr . removeNonPrintableChars . stripAnsiEscapeCodes)
+  where
+    removeNonPrintableChars :: Text -> Text
+    removeNonPrintableChars = T.filter (>= ' ')
 
 removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
 removeVmWhenFailing ctx vmName action = do

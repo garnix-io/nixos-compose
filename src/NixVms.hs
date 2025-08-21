@@ -6,7 +6,6 @@ import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
 import Data.Map.Strict qualified as Map
-import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
 import Data.Text.IO qualified as T
@@ -14,14 +13,13 @@ import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Network.Socket.Free (getFreePort)
-import Options (Verbosity (..), VmName (..))
+import Options (VmName (..))
 import State
 import StdLib
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory)
 import System.IO (Handle, IOMode (..), openFile)
-import System.IO qualified
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
 import Vde qualified
@@ -149,8 +147,8 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVmImpl ctx verbosity vmName vmExecutable = do
+runVmImpl :: Context -> Maybe (Text -> IO ()) -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx logLine vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
@@ -174,32 +172,28 @@ runVmImpl ctx verbosity vmName vmExecutable = do
             std_out = stdout,
             std_err = stderr
           }
-  proc <- case verbosity of
-    DefaultVerbosity -> do
+  proc <- case logLine of
+    Nothing -> do
       stdoutLog <- getVmFilePath ctx vmName "stdout.log"
       stdoutHandle <- openFile stdoutLog WriteMode
       stderrLog <- getVmFilePath ctx vmName "stderr.log"
       stderrHandle <- openFile stderrLog WriteMode
       pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
-    Verbose -> pure $ mkProc CreatePipe CreatePipe
+    Just _ -> pure $ mkProc CreatePipe CreatePipe
   (_, stdout, stderr, ph) <- createProcess proc
-  case verbosity of
-    DefaultVerbosity -> pure ()
-    Verbose -> do
-      (Just stdout, Just stderr) <- pure (stdout, stderr)
-      _ <- forkIO $ streamHandles ctx vmName stdout System.IO.stdout
-      _ <- forkIO $ streamHandles ctx vmName stderr System.IO.stderr
+  case (stdout, stderr, logLine) of
+    (Just stdout, Just stderr, Just logLine) -> do
+      _ <- forkIO $ streamHandles ctx vmName stdout logLine
+      _ <- forkIO $ streamHandles ctx vmName stderr logLine
       pure ()
+    _ -> pure ()
   pure ph
 
-removeNonPrintableChars :: Text -> Text
-removeNonPrintableChars = cs . filter (>= ' ') . cs
-
-streamHandles :: Context -> VmName -> Handle -> Handle -> IO ()
-streamHandles ctx vm input output = do
-  chunk <- T.hGetLine input
-  (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> removeNonPrintableChars (stripAnsiEscapeCodes chunk)
-  streamHandles ctx vm input output
+streamHandles :: Context -> VmName -> Handle -> (Text -> IO ()) -> IO ()
+streamHandles ctx vm input logLine = do
+  line <- T.hGetLine input
+  logLine $ vmNameToText vm <> "> " <> line
+  streamHandles ctx vm input logLine
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Port -> Text -> IO o
 sshIntoVmImpl ctx vmName port command = do

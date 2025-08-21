@@ -119,7 +119,7 @@ withMockContext vmNames action = do
               port <- getFreePort
               pure ("/fake-vm-script", port),
             runVm =
-              \_ctx _verbosity vmName _vmScript -> do
+              \_ctx _logLine vmName _vmScript -> do
                 unless (vmName `elem` vmNames) $ do
                   error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do

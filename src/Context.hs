@@ -6,7 +6,7 @@ import Data.Map (Map)
 import Data.Map qualified as Map
 import Logger
 import Net.IPv4 (IPv4)
-import Options (Verbosity, VmName)
+import Options (VmName)
 import StdLib
 import System.IO
 import System.Process
@@ -45,7 +45,7 @@ registerProcess ctx typ handle =
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
     buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
-    runVm :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle,
+    runVm :: Context -> Maybe (Text -> IO ()) -> VmName -> FilePath -> IO ProcessHandle,
     sshIntoVm :: SshIntoVm,
     updateVmHostsEntry :: Context -> VmName -> Port -> Hostname -> IPv4 -> IO ()
   }

@@ -13,6 +13,7 @@ import Ki qualified
 import Net.IPv4 qualified as IPv4
 import State (VmState (..), getVmFilePath, readState, readVmState)
 import StdLib
+import System.Console.ANSI (Color (..), ColorIntensity (..), ConsoleLayer (..), SGR (..), setSGRCode)
 import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Table (renderTable)
@@ -37,7 +38,7 @@ spec = do
                 waitBarrier buildVmBarrier
                 pure ("/fake-vm-script", 1234),
               runVm =
-                \_ctx _verbosity _vmName _vmScript -> do
+                \_ctx _handle _vmName _vmScript -> do
                   (_, _, _, ph) <- do
                     createProcess
                       (proc "sleep" ["inf"])
@@ -115,7 +116,7 @@ spec = do
       let blockingRunVm :: Context -> Context
           blockingRunVm =
             (#nixVms . #runVm)
-              .~ ( \_ctx _verbosity _vmName _vmScript -> do
+              .~ ( \_ctx _handle _vmName _vmScript -> do
                      forever $ threadDelay 1_000_000
                  )
       withMockContext ["a"] $ \(blockingRunVm -> ctx) -> do
@@ -175,7 +176,7 @@ spec = do
         failingRunVm exitCode context =
           context
             & (#nixVms . #runVm)
-            .~ ( \ctx _verbosity vmName _vmScript -> do
+            .~ ( \ctx _logLine vmName _vmScript -> do
                    stdoutLog <- getVmFilePath ctx vmName "stdout.log"
                    T.writeFile stdoutLog "test stdout"
                    stderrLog <- getVmFilePath ctx vmName "stderr.log"
@@ -238,6 +239,40 @@ spec = do
         state <- readState ctx
         state ^. #vms `shouldBe` mempty
         state ^. #vde `shouldBe` Nothing
+
+  describe "verbosity" $ do
+    let withLogMessage :: Text -> Context -> Context
+        withLogMessage bootMessage context =
+          context
+            & (#nixVms . #runVm)
+            %~ ( \runVm ctx logLine vmName vmExecutable -> do
+                   forM_ logLine $ \logLine -> do
+                     logLine bootMessage
+                   runVm ctx logLine vmName vmExecutable
+               )
+    context "with default verbosity" $ do
+      it "does not print the boot logs" $ do
+        withMockContext ["a"] $ \(withLogMessage "test boot message" -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a"]
+          result ^. #stderr `shouldSatisfy` (not . ("test boot message" `T.isInfixOf`))
+
+    context "when the `--verbose` flag is given" $ do
+      it "prints out boot logs" $ do
+        withMockContext ["a"] $ \(withLogMessage "test boot message" -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["test boot message"]
+
+      it "strips ansi escape sequences" $ do
+        let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "yellow message" <> cs (setSGRCode [Reset])
+        withMockContext ["a"] $ \(withLogMessage message -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["yellow message"]
+
+      it "removes nonprintable characters" $ do
+        let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "nonprintable: \BEL" <> cs (setSGRCode [Reset])
+        withMockContext ["a"] $ \(withLogMessage message -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["nonprintable: "]
 
 data Barrier = Barrier
   { target :: Int,
