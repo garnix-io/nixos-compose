@@ -17,7 +17,7 @@
       let
         pkgs = import "${nixpkgs}" { inherit system; config.allowBroken = true; };
         lib = pkgs.lib;
-        haskellPackages = pkgs.haskellPackages.override {
+        haskellPackages = pkgs.haskell.packages.ghc9122.override {
           overrides = final: prev: {
             cradle = cradle.lib.${system}.mkCradle final;
           };
@@ -154,7 +154,10 @@
         devShells = {
           default = pkgs.mkShell {
             buildInputs = with pkgs; ([
-              (haskell-language-server.override { dynamic = true; })
+              (haskell-language-server.override {
+                dynamic = true;
+                supportedGhcVersions = [ "9122" ];
+              })
               ghcWithDeps
               cabal-install
               ghcid
