@@ -28,6 +28,7 @@ import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
 import System.Directory (doesFileExist)
+import System.IO (Handle)
 import System.IO qualified
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
@@ -77,7 +78,8 @@ up ctx verbosity upOptions = do
               (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
               State.writeVmState ctx vmName $ Booting {ip}
               (ctx ^. #logger . #setPhase) vmName "booting"
-              ph <- (ctx ^. #nixVms . #runVm) ctx (verbosityToLogLine verbosity) vmName vmScript
+              ph <- withVerbosityHandles verbosity vmName $ \handles -> do
+                (ctx ^. #nixVms . #runVm) ctx handles vmName vmScript
               registerProcess ctx (Vm vmName) ph
               pid <-
                 System.Process.getPid ph
@@ -89,12 +91,19 @@ up ctx verbosity upOptions = do
     atomically $ Ki.awaitAll scope
     updateVmHostEntries ctx
 
-verbosityToLogLine :: Verbosity -> Maybe (Text -> IO ())
-verbosityToLogLine =
-  \case
-    DefaultVerbosity -> Nothing
-    Verbose -> Just (T.hPutStrLn System.IO.stderr . removeNonPrintableChars . stripAnsiEscapeCodes)
+withVerbosityHandles :: Verbosity -> VmName -> (Maybe (Handle, Handle) -> IO a) -> IO a
+withVerbosityHandles verbosity vmName action =
+  case verbosity of
+    DefaultVerbosity -> action Nothing
+    Verbose -> withLineHandler logLine (action . Just)
   where
+    logLine line =
+      T.hPutStrLn System.IO.stderr $
+        line
+          & stripAnsiEscapeCodes
+          & removeNonPrintableChars
+          & ((vmNameToText vmName <> "> ") <>)
+
     removeNonPrintableChars :: Text -> Text
     removeNonPrintableChars = T.filter (>= ' ')
 

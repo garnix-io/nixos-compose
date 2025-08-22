@@ -45,7 +45,7 @@ registerProcess ctx typ handle =
 data NixVms = NixVms
   { listVms :: Context -> IO [VmName],
     buildVmScript :: Context -> VmName -> IPv4 -> IO (FilePath, Port),
-    runVm :: Context -> Maybe (Text -> IO ()) -> VmName -> FilePath -> IO ProcessHandle,
+    runVm :: Context -> Maybe (Handle, Handle) -> VmName -> FilePath -> IO ProcessHandle,
     sshIntoVm :: SshIntoVm,
     updateVmHostsEntry :: Context -> VmName -> Port -> Hostname -> IPv4 -> IO ()
   }

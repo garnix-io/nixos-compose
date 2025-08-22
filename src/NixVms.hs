@@ -147,7 +147,7 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVmImpl :: Context -> Maybe (Text -> IO ()) -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl :: Context -> Maybe (Handle, Handle) -> VmName -> FilePath -> IO ProcessHandle
 runVmImpl ctx logLine vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
@@ -183,8 +183,8 @@ runVmImpl ctx logLine vmName vmExecutable = do
   (_, stdout, stderr, ph) <- createProcess proc
   case (stdout, stderr, logLine) of
     (Just stdout, Just stderr, Just logLine) -> do
-      _ <- forkIO $ streamHandles ctx vmName stdout logLine
-      _ <- forkIO $ streamHandles ctx vmName stderr logLine
+      _ <- forkIO $ streamHandles ctx vmName stdout _
+      _ <- forkIO $ streamHandles ctx vmName stderr _
       pure ()
     _ -> pure ()
   pure ph

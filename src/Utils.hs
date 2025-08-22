@@ -7,17 +7,24 @@ module Utils
     parseHostname,
     hostnameToText,
     which,
+    withLineHandler,
   )
 where
 
+import Control.Exception.Safe (catch, throwIO)
 import Control.Monad (filterM)
 import Cradle
 import Data.Map (Map)
 import Data.Map qualified as Map
 import Data.Text qualified as T
+import Data.Text.IO qualified as T
 import Debug.Trace qualified
+import GHC.Conc (atomically)
+import Ki qualified
+import SafeCreatePipe (safeCreatePipe)
 import StdLib
-import System.IO (hPrint, stderr)
+import System.IO (Handle, hClose, hPrint, stderr)
+import System.IO.Error (isEOFError)
 
 dbg :: (Show a) => a -> IO ()
 dbg = hPrint stderr
@@ -60,3 +67,29 @@ which executable = do
   pure $ case exitCode of
     ExitSuccess -> Just $ cs path
     ExitFailure _ -> Nothing
+
+withLineHandler :: (Text -> IO ()) -> ((Handle, Handle) -> IO a) -> IO a
+withLineHandler printLine action = do
+  Ki.scoped $ \scope -> do
+    (readEndStdout, writeEndStdout) <- safeCreatePipe
+    (readEndStderr, writeEndStderr) <- safeCreatePipe
+    _ <- Ki.fork scope (streamFromHandle readEndStdout printLine)
+    _ <- Ki.fork scope (streamFromHandle readEndStderr printLine)
+    r <- action (writeEndStdout, writeEndStderr)
+    mapM_ hClose [writeEndStdout, writeEndStderr]
+    atomically $ Ki.awaitAll scope
+    pure r
+  where
+    streamFromHandle :: Handle -> (Text -> IO ()) -> IO ()
+    streamFromHandle input logLine = do
+      line <-
+        (Just <$> T.hGetLine input)
+          `catch` ( \case
+                      e | isEOFError e -> pure Nothing
+                      e -> throwIO e
+                  )
+      case line of
+        Nothing -> pure ()
+        Just line -> do
+          logLine line
+          streamFromHandle input logLine

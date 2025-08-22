@@ -14,6 +14,7 @@ import Net.IPv4 qualified as IPv4
 import State (VmState (..), getVmFilePath, readState, readVmState)
 import StdLib
 import System.Console.ANSI (Color (..), ColorIntensity (..), ConsoleLayer (..), SGR (..), setSGRCode)
+import System.IO (hFlush)
 import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Table (renderTable)
@@ -241,38 +242,35 @@ spec = do
         state ^. #vde `shouldBe` Nothing
 
   describe "verbosity" $ do
-    let withLogMessage :: Text -> Context -> Context
-        withLogMessage bootMessage context =
-          context
-            & (#nixVms . #runVm)
-            %~ ( \runVm ctx logLine vmName vmExecutable -> do
-                   forM_ logLine $ \logLine -> do
-                     logLine bootMessage
-                   runVm ctx logLine vmName vmExecutable
-               )
     context "with default verbosity" $ do
       it "does not print the boot logs" $ do
-        withMockContext ["a"] $ \(withLogMessage "test boot message" -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Stdout "test boot message") -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a"]
           result ^. #stderr `shouldSatisfy` (not . ("test boot message" `T.isInfixOf`))
 
     context "when the `--verbose` flag is given" $ do
       it "prints out boot logs" $ do
-        withMockContext ["a"] $ \(withLogMessage "test boot message" -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Stdout "test boot message") -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
-          T.lines (result ^. #stderr) `shouldContain` ["test boot message"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> test boot message"]
 
       it "strips ansi escape sequences" $ do
         let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "yellow message" <> cs (setSGRCode [Reset])
-        withMockContext ["a"] $ \(withLogMessage message -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Stdout message) -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
-          T.lines (result ^. #stderr) `shouldContain` ["yellow message"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> yellow message"]
 
       it "removes nonprintable characters" $ do
         let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "nonprintable: \BEL" <> cs (setSGRCode [Reset])
-        withMockContext ["a"] $ \(withLogMessage message -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Stdout message) -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
-          T.lines (result ^. #stderr) `shouldContain` ["nonprintable: "]
+          T.lines (result ^. #stderr) `shouldContain` ["a> nonprintable: "]
+
+      it "prints out boot logs written to stderr" $ do
+        withMockContext ["a"] $ \(withLogMessage (Msg Stderr "test boot message") -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          print result
+          T.lines (result ^. #stderr) `shouldContain` ["a> test boot message"]
 
 data Barrier = Barrier
   { target :: Int,
@@ -298,3 +296,23 @@ groupIntoSets ns list = case (ns, list) of
      in Set.fromList group : groupIntoSets ns rest
   ([], []) -> []
   _ -> error "groupIntoSets: didn't get right amount of elements"
+
+data LogMessage = Msg StreamType Text
+
+data StreamType
+  = Stdout
+  | Stderr
+
+withLogMessage :: LogMessage -> Context -> Context
+withLogMessage (Msg streamType bootMessage) context =
+  context
+    & (#nixVms . #runVm)
+    %~ ( \runVm ctx handles vmName vmExecutable -> do
+           forM_ handles $ \(stdout, stderr) -> do
+             let handle = case streamType of
+                   Stdout -> stdout
+                   Stderr -> stderr
+             T.hPutStrLn handle bootMessage
+             hFlush stdout
+           runVm ctx handles vmName vmExecutable
+       )
