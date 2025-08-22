@@ -2,13 +2,11 @@ module NixVms (NixVms (..), production) where
 
 import Context
 import Context.Utils (runWithErrorHandling)
-import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
 import Data.Map.Strict qualified as Map
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
@@ -54,8 +52,8 @@ listVmsImpl ctx = do
     Left err -> impossible ctx $ cs err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildVmScriptImpl :: Context -> VmName -> IPv4 -> IO (FilePath, Port)
-buildVmScriptImpl ctx vmName ip = do
+buildVmScriptImpl :: Context -> Maybe Handle -> VmName -> IPv4 -> IO (FilePath, Port)
+buildVmScriptImpl ctx handle vmName ip = do
   port <- getFreePort
   moduleExtensions <- getModuleExtensions ctx vmName port ip
   (Cradle.StdoutTrimmed drvPathJson) <-
@@ -71,6 +69,7 @@ buildVmScriptImpl ctx vmName ip = do
                    "nixConfig: (nixConfig.extendModules { modules = [(" <> moduleExtensions <> ")]; }).config.system.build.vm.drvPath"
                  ]
           )
+        & maybe id addStderrHandle handle
   drvPath :: Text <- case Aeson.eitherDecode' $ cs drvPathJson of
     Right t -> pure t
     Left err -> impossible ctx $ cs err
@@ -87,6 +86,7 @@ buildVmScriptImpl ctx vmName ip = do
                  ]
           )
         & Cradle.setWorkingDir (workingDir ctx)
+        & maybe id addStderrHandle handle
 
   files <- listDirectory (cs outPath </> "bin")
   case files of
@@ -147,8 +147,8 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVmImpl :: Context -> Maybe (Handle, Handle) -> VmName -> FilePath -> IO ProcessHandle
-runVmImpl ctx logLine vmName vmExecutable = do
+runVmImpl :: Context -> Maybe Handle -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx handle vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
@@ -172,28 +172,16 @@ runVmImpl ctx logLine vmName vmExecutable = do
             std_out = stdout,
             std_err = stderr
           }
-  proc <- case logLine of
+  proc <- case handle of
     Nothing -> do
       stdoutLog <- getVmFilePath ctx vmName "stdout.log"
       stdoutHandle <- openFile stdoutLog WriteMode
       stderrLog <- getVmFilePath ctx vmName "stderr.log"
       stderrHandle <- openFile stderrLog WriteMode
       pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
-    Just _ -> pure $ mkProc CreatePipe CreatePipe
-  (_, stdout, stderr, ph) <- createProcess proc
-  case (stdout, stderr, logLine) of
-    (Just stdout, Just stderr, Just logLine) -> do
-      _ <- forkIO $ streamHandles ctx vmName stdout _
-      _ <- forkIO $ streamHandles ctx vmName stderr _
-      pure ()
-    _ -> pure ()
+    Just handle -> pure $ mkProc (UseHandle handle) (UseHandle handle)
+  (_, _, _, ph) <- createProcess proc
   pure ph
-
-streamHandles :: Context -> VmName -> Handle -> (Text -> IO ()) -> IO ()
-streamHandles ctx vm input logLine = do
-  line <- T.hGetLine input
-  logLine $ vmNameToText vm <> "> " <> line
-  streamHandles ctx vm input logLine
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Port -> Text -> IO o
 sshIntoVmImpl ctx vmName port command = do

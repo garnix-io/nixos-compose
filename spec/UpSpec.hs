@@ -35,7 +35,7 @@ spec = do
     let mockNixVms =
           NixVms
             { listVms = \_ctx -> pure vmNames,
-              buildVmScript = \_ctx _vmName _ip -> do
+              buildVmScript = \_ctx _handle _vmName _ip -> do
                 waitBarrier buildVmBarrier
                 pure ("/fake-vm-script", 1234),
               runVm =
@@ -85,7 +85,7 @@ spec = do
       let blockingBuildVmScript :: Context -> Context
           blockingBuildVmScript =
             (#nixVms . #buildVmScript)
-              .~ ( \_ctx _vmName _ip -> do
+              .~ ( \_ctx _handle _vmName _ip -> do
                      forever $ threadDelay 1_000_000
                  )
       it "locks the state of a vm when building the nixos config" $ do
@@ -136,7 +136,7 @@ spec = do
         failingBuildVmScript =
           #nixVms
             . #buildVmScript
-            .~ ( \_ctx _vmName _ip -> do
+            .~ ( \_ctx _handle _vmName _ip -> do
                    T.hPutStrLn System.IO.stderr "test output"
                    exitWith $ ExitFailure 42
                )
@@ -155,7 +155,7 @@ spec = do
       let blockingBuildVmScript :: Context -> Context
           blockingBuildVmScript =
             (#nixVms . #buildVmScript)
-              .~ ( \_ctx _vmName _ip -> do
+              .~ ( \_ctx _handle _vmName _ip -> do
                      putMVar blockingOnBuild ()
                      forever $ threadDelay 1_000_000
                  )
@@ -244,33 +244,32 @@ spec = do
   describe "verbosity" $ do
     context "with default verbosity" $ do
       it "does not print the boot logs" $ do
-        withMockContext ["a"] $ \(withLogMessage (Msg Stdout "test boot message") -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot "test boot message") -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a"]
           result ^. #stderr `shouldSatisfy` (not . ("test boot message" `T.isInfixOf`))
 
     context "when the `--verbose` flag is given" $ do
+      it "prints out nix build logs" $ do
+        withMockContext ["a"] $ \(withLogMessage (Msg Build "test build message") -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> test build message"]
+
       it "prints out boot logs" $ do
-        withMockContext ["a"] $ \(withLogMessage (Msg Stdout "test boot message") -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot "test boot message") -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
           T.lines (result ^. #stderr) `shouldContain` ["a> test boot message"]
 
       it "strips ansi escape sequences" $ do
         let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "yellow message" <> cs (setSGRCode [Reset])
-        withMockContext ["a"] $ \(withLogMessage (Msg Stdout message) -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot message) -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
           T.lines (result ^. #stderr) `shouldContain` ["a> yellow message"]
 
       it "removes nonprintable characters" $ do
         let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "nonprintable: \BEL" <> cs (setSGRCode [Reset])
-        withMockContext ["a"] $ \(withLogMessage (Msg Stdout message) -> ctx) -> do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot message) -> ctx) -> do
           result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
           T.lines (result ^. #stderr) `shouldContain` ["a> nonprintable: "]
-
-      it "prints out boot logs written to stderr" $ do
-        withMockContext ["a"] $ \(withLogMessage (Msg Stderr "test boot message") -> ctx) -> do
-          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
-          print result
-          T.lines (result ^. #stderr) `shouldContain` ["a> test boot message"]
 
 data Barrier = Barrier
   { target :: Int,
@@ -297,22 +296,29 @@ groupIntoSets ns list = case (ns, list) of
   ([], []) -> []
   _ -> error "groupIntoSets: didn't get right amount of elements"
 
-data LogMessage = Msg StreamType Text
+data LogMessage = Msg Phase Text
 
-data StreamType
-  = Stdout
-  | Stderr
+data Phase
+  = Build
+  | Boot
+  deriving stock (Eq)
 
 withLogMessage :: LogMessage -> Context -> Context
-withLogMessage (Msg streamType bootMessage) context =
-  context
-    & (#nixVms . #runVm)
-    %~ ( \runVm ctx handles vmName vmExecutable -> do
-           forM_ handles $ \(stdout, stderr) -> do
-             let handle = case streamType of
-                   Stdout -> stdout
-                   Stderr -> stderr
-             T.hPutStrLn handle bootMessage
-             hFlush stdout
-           runVm ctx handles vmName vmExecutable
-       )
+withLogMessage (Msg phase bootMessage) context =
+  let printMessage handle =
+        forM_ handle $ \handle -> do
+          T.hPutStrLn handle bootMessage
+          hFlush handle
+   in context
+        & (#nixVms . #buildVmScript)
+        %~ ( \buildVmScript ctx handle vmName ip -> do
+               when (phase == Build) $ do
+                 printMessage handle
+               buildVmScript ctx handle vmName ip
+           )
+        & (#nixVms . #runVm)
+        %~ ( \runVm ctx handle vmName vmExecutable -> do
+               when (phase == Boot) $ do
+                 printMessage handle
+               runVm ctx handle vmName vmExecutable
+           )

@@ -11,7 +11,7 @@ where
 
 import Context
 import Context.Utils
-import Control.Exception.Safe (onException, throwIO)
+import Control.Exception.Safe (catch, onException, throwIO)
 import Cradle
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
@@ -24,12 +24,14 @@ import Ki qualified
 import Logging
 import Net.IPv4 qualified as IPv4
 import Options (AllOrSomeVms (..), DryRunFlag, Verbosity (..), VmName (..))
+import SafeCreatePipe (safeCreatePipe)
 import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
 import System.Directory (doesFileExist)
-import System.IO (Handle)
+import System.IO (BufferMode (..), Handle, hSetBuffering, stderr)
 import System.IO qualified
+import System.IO.Error (isEOFError)
 import System.Posix (sigKILL, signalProcess)
 import System.Process (ProcessHandle, getPid, getProcessExitCode)
 import Table (renderTable, unstyledText)
@@ -75,37 +77,82 @@ up ctx verbosity upOptions = do
                 runWithErrorHandling ctx $
                   Cradle.cmd "ssh-keygen"
                     & Cradle.addArgs ["-f", vmKeyPath, "-N", ""]
-              (vmScript, port) <- buildVmScript (nixVms ctx) ctx vmName ip
+              (vmScript, port) <-
+                terminating ctx verbosity vmName $ \handle -> do
+                  buildVmScript (nixVms ctx) ctx handle vmName ip
               State.writeVmState ctx vmName $ Booting {ip}
               (ctx ^. #logger . #setPhase) vmName "booting"
-              ph <- withVerbosityHandles verbosity vmName $ \handles -> do
-                (ctx ^. #nixVms . #runVm) ctx handles vmName vmScript
-              registerProcess ctx (Vm vmName) ph
-              pid <-
-                System.Process.getPid ph
-                  >>= maybe (impossible ctx "qemu process has no pid") pure
-              waitForVm ctx vmName port ph
-              pure (pid, port)
+              nonTerminating ctx verbosity vmName $ \handle -> do
+                ph <- do
+                  (ctx ^. #nixVms . #runVm) ctx handle vmName vmScript
+                registerProcess ctx (Vm vmName) ph
+                pid <-
+                  System.Process.getPid ph
+                    >>= maybe (impossible ctx "qemu process has no pid") pure
+                waitForVm ctx vmName port ph
+                pure (pid, port)
             State.writeVmState ctx vmName (Running {pid, port, ip})
             (ctx ^. #logger . #clearPhase) vmName
     atomically $ Ki.awaitAll scope
     updateVmHostEntries ctx
 
-withVerbosityHandles :: Verbosity -> VmName -> (Maybe (Handle, Handle) -> IO a) -> IO a
-withVerbosityHandles verbosity vmName action =
-  case verbosity of
-    DefaultVerbosity -> action Nothing
-    Verbose -> withLineHandler logLine (action . Just)
-  where
-    logLine line =
-      T.hPutStrLn System.IO.stderr $
-        line
-          & stripAnsiEscapeCodes
-          & removeNonPrintableChars
-          & ((vmNameToText vmName <> "> ") <>)
+-- | Logs everything written to the handle according to the given verbosity.
+-- The handle can be passed to *terminating* child processes.
+-- The handle will be closed after the given action is done and the stream threads will be waited for.
+terminating :: Context -> Verbosity -> VmName -> (Maybe Handle -> IO a) -> IO a
+terminating ctx verbosity vmName action =
+  Ki.scoped $ \scope -> do
+    handle <- newVerbosityHandle scope verbosity (logLineForVm ctx vmName)
+    x <- action handle
+    forM_ handle $ \handle -> do
+      System.IO.hClose handle
+    atomically $ Ki.awaitAll scope
+    return x
 
+-- | Logs everything written to the handle according to the given verbosity.
+-- The handle can be passed to *non-terminating* child processes.
+-- Once the given action is done, the handle *won't* be closed, but logging will stop.
+nonTerminating :: Context -> Verbosity -> VmName -> (Maybe Handle -> IO a) -> IO a
+nonTerminating ctx verbosity vmName action =
+  Ki.scoped $ \scope -> do
+    handle <- newVerbosityHandle scope verbosity (logLineForVm ctx vmName)
+    action handle
+
+logLineForVm :: Context -> VmName -> Text -> IO ()
+logLineForVm ctx vmName line =
+  (ctx ^. #logger . #pushLog)
+    System.IO.stderr
+    $ line
+      & stripAnsiEscapeCodes
+      & removeNonPrintableChars
+      & ((vmNameToText vmName <> "> ") <>)
+  where
     removeNonPrintableChars :: Text -> Text
     removeNonPrintableChars = T.filter (>= ' ')
+
+newVerbosityHandle :: Ki.Scope -> Verbosity -> (Text -> IO ()) -> IO (Maybe Handle)
+newVerbosityHandle scope verbosity logLine =
+  case verbosity of
+    DefaultVerbosity -> pure Nothing
+    Verbose -> do
+      (readEnd, writeEnd) <- safeCreatePipe
+      hSetBuffering writeEnd LineBuffering
+      _ <- Ki.fork scope (streamFromHandle readEnd logLine)
+      pure $ Just writeEnd
+  where
+    streamFromHandle :: Handle -> (Text -> IO ()) -> IO ()
+    streamFromHandle handle logLine = do
+      line <-
+        (Just <$> T.hGetLine handle)
+          `catch` ( \case
+                      e | isEOFError e -> pure Nothing
+                      e -> throwIO e
+                  )
+      case line of
+        Nothing -> pure ()
+        Just line -> do
+          logLine line
+          streamFromHandle handle logLine
 
 removeVmWhenFailing :: Context -> VmName -> IO a -> IO a
 removeVmWhenFailing ctx vmName action = do
