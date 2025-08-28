@@ -29,7 +29,7 @@ import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
 import System.Directory (doesFileExist)
-import System.IO (BufferMode (..), Handle, hSetBuffering, stderr)
+import System.IO (BufferMode (..), Handle, IOMode (..), hClose, hSetBuffering, openFile, stderr)
 import System.IO qualified
 import System.IO.Error (isEOFError)
 import System.Posix (sigKILL, signalProcess)
@@ -83,13 +83,31 @@ up ctx verbosity upOptions = do
               State.writeVmState ctx vmName $ Booting {ip}
               (ctx ^. #logger . #setPhase) vmName "booting"
               nonTerminating ctx verbosity vmName $ \handle -> do
-                ph <- do
-                  (ctx ^. #nixVms . #runVm) ctx handle vmName vmScript
+                (handle, logFile) <- case handle of
+                  Nothing -> do
+                    logFile <- getVmFilePath ctx vmName "log.txt"
+                    handle <- openFile logFile WriteMode
+                    pure (handle, Just logFile)
+                  Just handle -> pure (handle, Nothing)
+                ph <- (ctx ^. #nixVms . #runVm) ctx handle vmName vmScript
                 registerProcess ctx (Vm vmName) ph
                 pid <-
                   System.Process.getPid ph
                     >>= maybe (impossible ctx "qemu process has no pid") pure
-                waitForVm ctx vmName port ph
+                waitForVm ctx vmName port ph $ \vmScriptExitCode -> do
+                  case logFile of
+                    Just logFile -> do
+                      hClose handle
+                      output <- T.readFile logFile
+                      info ctx (T.intercalate "\n" ["VM failed to start:\n", T.stripEnd output])
+                      exitWith $ case vmScriptExitCode of
+                        ExitSuccess -> ExitFailure 1
+                        vmScriptExitCode -> vmScriptExitCode
+                    Nothing -> do
+                      info ctx "VM failed to start"
+                      exitWith $ case vmScriptExitCode of
+                        ExitSuccess -> ExitFailure 1
+                        vmScriptExitCode -> vmScriptExitCode
                 pure (pid, port)
             State.writeVmState ctx vmName (Running {pid, port, ip})
             (ctx ^. #logger . #clearPhase) vmName
@@ -182,23 +200,16 @@ down ctx vmNames = do
           signalProcess sigKILL pid
           removeVm ctx vmName
 
-waitForVm :: Context -> VmName -> Port -> ProcessHandle -> IO ()
-waitForVm ctx vmName port ph = do
+waitForVm :: Context -> VmName -> Port -> ProcessHandle -> (ExitCode -> IO ()) -> IO ()
+waitForVm ctx vmName port ph handleCrash = do
   (StdoutRaw _, StderrRaw _, sshExitCode) <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port "true"
   case sshExitCode of
     ExitSuccess -> pure ()
     ExitFailure _ -> do
       vmScriptExitCode <- getProcessExitCode ph
       case vmScriptExitCode of
-        Nothing -> waitForVm ctx vmName port ph
-        Just vmScriptExitCode -> do
-          stdout <- getVmFilePath ctx vmName "stdout.log" >>= T.readFile
-          stderr <- getVmFilePath ctx vmName "stderr.log" >>= T.readFile
-          do
-            info ctx (T.intercalate "\n" ["VM failed to start:\n", stdout, stderr])
-            exitWith $ case vmScriptExitCode of
-              ExitSuccess -> ExitFailure 1
-              vmScriptExitCode -> vmScriptExitCode
+        Nothing -> waitForVm ctx vmName port ph handleCrash
+        Just vmScriptExitCode -> handleCrash vmScriptExitCode
 
 ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do

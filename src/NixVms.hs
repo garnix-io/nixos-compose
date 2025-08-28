@@ -17,7 +17,7 @@ import StdLib
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory)
-import System.IO (Handle, IOMode (..), openFile)
+import System.IO (Handle)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
 import Vde qualified
@@ -147,14 +147,15 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVmImpl :: Context -> Maybe Handle -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl :: Context -> Handle -> VmName -> FilePath -> IO ProcessHandle
 runVmImpl ctx handle vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
   vdeCtlDir <- Vde.getVdeCtlDir ctx
-  let mkProc stdout stderr =
-        ( System.Process.proc
+  (_, _, _, ph) <-
+    createProcess
+      ( ( System.Process.proc
             vmExecutable
             [ "-device",
               "virtio-net-pci,netdev=vlan1,mac=52:54:00:12:01:03",
@@ -169,18 +170,10 @@ runVmImpl ctx handle vmName vmExecutable = do
                     <> "NIX_DISK_IMAGE" ~> nixDiskImage
                     <> "NIXOS_COMPOSE_FLAKE_DIR" ~> (ctx ^. #workingDir),
             std_in = CreatePipe,
-            std_out = stdout,
-            std_err = stderr
+            std_out = UseHandle handle,
+            std_err = UseHandle handle
           }
-  proc <- case handle of
-    Nothing -> do
-      stdoutLog <- getVmFilePath ctx vmName "stdout.log"
-      stdoutHandle <- openFile stdoutLog WriteMode
-      stderrLog <- getVmFilePath ctx vmName "stderr.log"
-      stderrHandle <- openFile stderrLog WriteMode
-      pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
-    Just handle -> pure $ mkProc (UseHandle handle) (UseHandle handle)
-  (_, _, _, ph) <- createProcess proc
+      )
   pure ph
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Port -> Text -> IO o

@@ -126,8 +126,8 @@ withMockContext vmNames action = do
                   createProcess
                     (proc "sleep" ["inf"])
                       { std_in = NoStream,
-                        std_out = maybe NoStream UseHandle handle,
-                        std_err = maybe NoStream UseHandle handle
+                        std_out = UseHandle handle,
+                        std_err = UseHandle handle
                       }
                 pure ph,
             sshIntoVm = SshIntoVm $ \ctx vmName _port command -> do

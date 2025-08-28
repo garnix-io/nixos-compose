@@ -11,7 +11,7 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), getVmFilePath, readState, readVmState)
+import State (VmState (..), readState, readVmState)
 import StdLib
 import System.Console.ANSI (Color (..), ColorIntensity (..), ConsoleLayer (..), SGR (..), setSGRCode)
 import System.IO (hFlush)
@@ -177,11 +177,9 @@ spec = do
         failingRunVm exitCode context =
           context
             & (#nixVms . #runVm)
-            .~ ( \ctx _logLine vmName _vmScript -> do
-                   stdoutLog <- getVmFilePath ctx vmName "stdout.log"
-                   T.writeFile stdoutLog "test stdout"
-                   stderrLog <- getVmFilePath ctx vmName "stderr.log"
-                   T.writeFile stderrLog "test stderr"
+            .~ ( \_ctx handle _vmName _vmScript -> do
+                   T.hPutStrLn handle "test stdout"
+                   T.hPutStrLn handle "test stderr"
                    (_, _, _, ph) <- do
                      createProcess
                        (proc "bash" ["-c", "sleep 0.01; exit " <> show exitCode])
@@ -233,6 +231,22 @@ spec = do
                 ]
             )
             (ExitFailure 1)
+
+    it "shows the script output, with --verbose" $ do
+      withMockContext ["a"] $ \(failingRunVm 42 -> ctx) -> do
+        test ctx ["up", "a", "--verbose"]
+          `shouldReturn` TestResult
+            ""
+            ( T.unlines
+                [ "a: building...",
+                  "a: done building",
+                  "a: booting...",
+                  "a> test stdout",
+                  "a> test stderr",
+                  "VM failed to start"
+                ]
+            )
+            (ExitFailure 42)
 
     it "cleans up the state.json file" $ do
       withMockContext ["a"] $ \(failingRunVm 0 -> ctx) -> do
@@ -319,6 +333,6 @@ withLogMessage (Msg phase bootMessage) context =
         & (#nixVms . #runVm)
         %~ ( \runVm ctx handle vmName vmExecutable -> do
                when (phase == Boot) $ do
-                 printMessage handle
+                 printMessage (Just handle)
                runVm ctx handle vmName vmExecutable
            )
