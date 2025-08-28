@@ -40,7 +40,7 @@ handleExceptions ctx action = do
     Right exitCode -> pure exitCode
     Left (e :: SomeException) -> do
       case fromException e of
-        Just e -> pure e
+        Just (e :: ExitCode) -> pure e
         Nothing -> do
           info ctx (cs $ show e)
-          pure (ExitFailure 33)
+          pure (ExitFailure 1)
