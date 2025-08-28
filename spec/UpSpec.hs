@@ -14,7 +14,6 @@ import Net.IPv4 qualified as IPv4
 import State (VmState (..), readState, readVmState)
 import StdLib
 import System.Console.ANSI (Color (..), ColorIntensity (..), ConsoleLayer (..), SGR (..), setSGRCode)
-import System.IO (hFlush)
 import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Table (renderTable)
@@ -178,8 +177,7 @@ spec = do
           context
             & (#nixVms . #runVm)
             .~ ( \_ctx handle _vmName _vmScript -> do
-                   T.hPutStrLn handle "test stdout"
-                   T.hPutStrLn handle "test stderr"
+                   T.hPutStrLn handle "test output"
                    (_, _, _, ph) <- do
                      createProcess
                        (proc "bash" ["-c", "sleep 0.01; exit " <> show exitCode])
@@ -209,8 +207,7 @@ spec = do
                   "a: booting...",
                   "VM failed to start:",
                   "",
-                  "test stdout",
-                  "test stderr"
+                  "test output"
                 ]
             )
             (ExitFailure 42)
@@ -226,8 +223,7 @@ spec = do
                   "a: booting...",
                   "VM failed to start:",
                   "",
-                  "test stdout",
-                  "test stderr"
+                  "test output"
                 ]
             )
             (ExitFailure 1)
@@ -241,8 +237,7 @@ spec = do
                 [ "a: building...",
                   "a: done building",
                   "a: booting...",
-                  "a> test stdout",
-                  "a> test stderr",
+                  "a> test output",
                   "VM failed to start"
                 ]
             )
@@ -318,21 +313,18 @@ data Phase
   deriving stock (Eq)
 
 withLogMessage :: LogMessage -> Context -> Context
-withLogMessage (Msg phase bootMessage) context =
-  let printMessage handle =
-        forM_ handle $ \handle -> do
-          T.hPutStrLn handle bootMessage
-          hFlush handle
-   in context
-        & (#nixVms . #buildVmScript)
-        %~ ( \buildVmScript ctx handle vmName ip -> do
-               when (phase == Build) $ do
-                 printMessage handle
-               buildVmScript ctx handle vmName ip
-           )
-        & (#nixVms . #runVm)
-        %~ ( \runVm ctx handle vmName vmExecutable -> do
-               when (phase == Boot) $ do
-                 printMessage (Just handle)
-               runVm ctx handle vmName vmExecutable
-           )
+withLogMessage (Msg phase message) context =
+  context
+    & (#nixVms . #buildVmScript)
+    %~ ( \buildVmScript ctx handle vmName ip -> do
+           when (phase == Build) $ do
+             forM_ handle $ \handle -> do
+               T.hPutStrLn handle message
+           buildVmScript ctx handle vmName ip
+       )
+    & (#nixVms . #runVm)
+    %~ ( \runVm ctx handle vmName vmExecutable -> do
+           when (phase == Boot) $ do
+             T.hPutStrLn handle message
+           runVm ctx handle vmName vmExecutable
+       )
