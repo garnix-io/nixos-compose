@@ -6,9 +6,8 @@
 └── vms
     └── server
         ├── image.qcow2
-        ├── stderr.log
-        ├── stdout.log
+        ├── log.txt
         ├── vmkey
         └── vmkey.pub
 
-4 directories, 8 files
+4 directories, 7 files
