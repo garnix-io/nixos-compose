@@ -1,6 +1,7 @@
 module Run where
 
 import Commands
+import Commands.Up (up)
 import Context (Context)
 import Context.Production qualified
 import Context.Utils (info)
