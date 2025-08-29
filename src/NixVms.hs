@@ -2,26 +2,22 @@ module NixVms (NixVms (..), production) where
 
 import Context
 import Context.Utils (runWithErrorHandling)
-import Control.Concurrent (forkIO)
 import Cradle
 import Data.Aeson qualified as Aeson
 import Data.Map.Strict qualified as Map
-import Data.String.AnsiEscapeCodes.Strip.Text (stripAnsiEscapeCodes)
 import Data.String.Interpolate (i)
 import Data.Text qualified as T
-import Data.Text.IO qualified as T
 import Logging
 import Net.IPv4 (IPv4)
 import Net.IPv4 qualified as IPv4
 import Network.Socket.Free (getFreePort)
-import Options (Verbosity (..), VmName (..))
+import Options (VmName (..))
 import State
 import StdLib
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory)
-import System.IO (Handle, IOMode (..), openFile)
-import System.IO qualified
+import System.IO (Handle)
 import System.Process (CreateProcess (..), ProcessHandle, StdStream (..), createProcess, proc)
 import Utils
 import Vde qualified
@@ -56,8 +52,8 @@ listVmsImpl ctx = do
     Left err -> impossible ctx $ cs err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
-buildVmScriptImpl :: Context -> VmName -> IPv4 -> IO (FilePath, Port)
-buildVmScriptImpl ctx vmName ip = do
+buildVmScriptImpl :: Context -> Maybe Handle -> VmName -> IPv4 -> IO (FilePath, Port)
+buildVmScriptImpl ctx handle vmName ip = do
   port <- getFreePort
   moduleExtensions <- getModuleExtensions ctx vmName port ip
   (Cradle.StdoutTrimmed drvPathJson) <-
@@ -73,6 +69,7 @@ buildVmScriptImpl ctx vmName ip = do
                    "nixConfig: (nixConfig.extendModules { modules = [(" <> moduleExtensions <> ")]; }).config.system.build.vm.drvPath"
                  ]
           )
+        & maybe id addStderrHandle handle
   drvPath :: Text <- case Aeson.eitherDecode' $ cs drvPathJson of
     Right t -> pure t
     Left err -> impossible ctx $ cs err
@@ -89,6 +86,7 @@ buildVmScriptImpl ctx vmName ip = do
                  ]
           )
         & Cradle.setWorkingDir (workingDir ctx)
+        & maybe id addStderrHandle handle
 
   files <- listDirectory (cs outPath </> "bin")
   case files of
@@ -149,14 +147,15 @@ toNixString s = "\"" <> T.concatMap escapeChar (cs s) <> "\""
       '\\' -> "\\\\"
       c -> T.singleton c
 
-runVmImpl :: Context -> Verbosity -> VmName -> FilePath -> IO ProcessHandle
-runVmImpl ctx verbosity vmName vmExecutable = do
+runVmImpl :: Context -> Handle -> VmName -> FilePath -> IO ProcessHandle
+runVmImpl ctx handle vmName vmExecutable = do
   nixDiskImage <- getVmFilePath ctx vmName "image.qcow2"
   createDirectoryIfMissing True (takeDirectory nixDiskImage)
   parentEnvironment <- getEnvironment <&> Map.fromList
   vdeCtlDir <- Vde.getVdeCtlDir ctx
-  let mkProc stdout stderr =
-        ( System.Process.proc
+  (_, _, _, ph) <-
+    createProcess
+      ( ( System.Process.proc
             vmExecutable
             [ "-device",
               "virtio-net-pci,netdev=vlan1,mac=52:54:00:12:01:03",
@@ -171,35 +170,11 @@ runVmImpl ctx verbosity vmName vmExecutable = do
                     <> "NIX_DISK_IMAGE" ~> nixDiskImage
                     <> "NIXOS_COMPOSE_FLAKE_DIR" ~> (ctx ^. #workingDir),
             std_in = CreatePipe,
-            std_out = stdout,
-            std_err = stderr
+            std_out = UseHandle handle,
+            std_err = UseHandle handle
           }
-  proc <- case verbosity of
-    DefaultVerbosity -> do
-      stdoutLog <- getVmFilePath ctx vmName "stdout.log"
-      stdoutHandle <- openFile stdoutLog WriteMode
-      stderrLog <- getVmFilePath ctx vmName "stderr.log"
-      stderrHandle <- openFile stderrLog WriteMode
-      pure $ mkProc (UseHandle stdoutHandle) (UseHandle stderrHandle)
-    Verbose -> pure $ mkProc CreatePipe CreatePipe
-  (_, stdout, stderr, ph) <- createProcess proc
-  case verbosity of
-    DefaultVerbosity -> pure ()
-    Verbose -> do
-      (Just stdout, Just stderr) <- pure (stdout, stderr)
-      _ <- forkIO $ streamHandles ctx vmName stdout System.IO.stdout
-      _ <- forkIO $ streamHandles ctx vmName stderr System.IO.stderr
-      pure ()
+      )
   pure ph
-
-removeNonPrintableChars :: Text -> Text
-removeNonPrintableChars = cs . filter (>= ' ') . cs
-
-streamHandles :: Context -> VmName -> Handle -> Handle -> IO ()
-streamHandles ctx vm input output = do
-  chunk <- T.hGetLine input
-  (ctx ^. #logger . #pushLog) output $ vmNameToText vm <> "> " <> removeNonPrintableChars (stripAnsiEscapeCodes chunk)
-  streamHandles ctx vm input output
 
 sshIntoVmImpl :: (Cradle.Output o) => Context -> VmName -> Port -> Text -> IO o
 sshIntoVmImpl ctx vmName port command = do

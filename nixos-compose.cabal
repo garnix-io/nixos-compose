@@ -20,6 +20,7 @@ executable nixos-compose
       NixVms
       Options
       Run
+      SafeCreatePipe
       State
       StdLib
       Table
@@ -100,6 +101,7 @@ test-suite spec
       NixVms
       Options
       Run
+      SafeCreatePipe
       State
       StdLib
       Table
