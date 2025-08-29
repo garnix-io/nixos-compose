@@ -12,6 +12,7 @@ executable nixos-compose
   main-is: Main.hs
   other-modules:
       Commands
+      Commands.Up
       Context
       Context.Production
       Context.Utils
@@ -92,6 +93,7 @@ test-suite spec
       UpSpec
       UtilsSpec
       Commands
+      Commands.Up
       Context
       Context.Production
       Context.Utils
