@@ -11,8 +11,9 @@ import Data.Text qualified as T
 import Data.Text.IO qualified as T
 import Ki qualified
 import Net.IPv4 qualified as IPv4
-import State (VmState (..), getVmFilePath, readState, readVmState)
+import State (VmState (..), readState, readVmState)
 import StdLib
+import System.Console.ANSI (Color (..), ColorIntensity (..), ConsoleLayer (..), SGR (..), setSGRCode)
 import System.IO qualified
 import System.Process (CreateProcess (..), StdStream (..), createProcess, proc)
 import Table (renderTable)
@@ -33,11 +34,11 @@ spec = do
     let mockNixVms =
           NixVms
             { listVms = \_ctx -> pure vmNames,
-              buildVmScript = \_ctx _vmName _ip -> do
+              buildVmScript = \_ctx _handle _vmName _ip -> do
                 waitBarrier buildVmBarrier
                 pure ("/fake-vm-script", 1234),
               runVm =
-                \_ctx _verbosity _vmName _vmScript -> do
+                \_ctx _handle _vmName _vmScript -> do
                   (_, _, _, ph) <- do
                     createProcess
                       (proc "sleep" ["inf"])
@@ -83,7 +84,7 @@ spec = do
       let blockingBuildVmScript :: Context -> Context
           blockingBuildVmScript =
             (#nixVms . #buildVmScript)
-              .~ ( \_ctx _vmName _ip -> do
+              .~ ( \_ctx _handle _vmName _ip -> do
                      forever $ threadDelay 1_000_000
                  )
       it "locks the state of a vm when building the nixos config" $ do
@@ -115,7 +116,7 @@ spec = do
       let blockingRunVm :: Context -> Context
           blockingRunVm =
             (#nixVms . #runVm)
-              .~ ( \_ctx _verbosity _vmName _vmScript -> do
+              .~ ( \_ctx _handle _vmName _vmScript -> do
                      forever $ threadDelay 1_000_000
                  )
       withMockContext ["a"] $ \(blockingRunVm -> ctx) -> do
@@ -134,7 +135,7 @@ spec = do
         failingBuildVmScript =
           #nixVms
             . #buildVmScript
-            .~ ( \_ctx _vmName _ip -> do
+            .~ ( \_ctx _handle _vmName _ip -> do
                    T.hPutStrLn System.IO.stderr "test output"
                    exitWith $ ExitFailure 42
                )
@@ -153,7 +154,7 @@ spec = do
       let blockingBuildVmScript :: Context -> Context
           blockingBuildVmScript =
             (#nixVms . #buildVmScript)
-              .~ ( \_ctx _vmName _ip -> do
+              .~ ( \_ctx _handle _vmName _ip -> do
                      putMVar blockingOnBuild ()
                      forever $ threadDelay 1_000_000
                  )
@@ -175,11 +176,8 @@ spec = do
         failingRunVm exitCode context =
           context
             & (#nixVms . #runVm)
-            .~ ( \ctx _verbosity vmName _vmScript -> do
-                   stdoutLog <- getVmFilePath ctx vmName "stdout.log"
-                   T.writeFile stdoutLog "test stdout"
-                   stderrLog <- getVmFilePath ctx vmName "stderr.log"
-                   T.writeFile stderrLog "test stderr"
+            .~ ( \_ctx handle _vmName _vmScript -> do
+                   T.hPutStrLn handle "test output"
                    (_, _, _, ph) <- do
                      createProcess
                        (proc "bash" ["-c", "sleep 0.01; exit " <> show exitCode])
@@ -209,8 +207,7 @@ spec = do
                   "a: booting...",
                   "VM failed to start:",
                   "",
-                  "test stdout",
-                  "test stderr"
+                  "test output"
                 ]
             )
             (ExitFailure 42)
@@ -226,11 +223,25 @@ spec = do
                   "a: booting...",
                   "VM failed to start:",
                   "",
-                  "test stdout",
-                  "test stderr"
+                  "test output"
                 ]
             )
             (ExitFailure 1)
+
+    it "shows the script output, with --verbose" $ do
+      withMockContext ["a"] $ \(failingRunVm 42 -> ctx) -> do
+        test ctx ["up", "a", "--verbose"]
+          `shouldReturn` TestResult
+            ""
+            ( T.unlines
+                [ "a: building...",
+                  "a: done building",
+                  "a: booting...",
+                  "a> test output",
+                  "VM failed to start"
+                ]
+            )
+            (ExitFailure 42)
 
     it "cleans up the state.json file" $ do
       withMockContext ["a"] $ \(failingRunVm 0 -> ctx) -> do
@@ -238,6 +249,36 @@ spec = do
         state <- readState ctx
         state ^. #vms `shouldBe` mempty
         state ^. #vde `shouldBe` Nothing
+
+  describe "verbosity" $ do
+    context "with default verbosity" $ do
+      it "does not print the boot logs" $ do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot "test boot message") -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a"]
+          result ^. #stderr `shouldSatisfy` (not . ("test boot message" `T.isInfixOf`))
+
+    context "when the `--verbose` flag is given" $ do
+      it "prints out nix build logs" $ do
+        withMockContext ["a"] $ \(withLogMessage (Msg Build "test build message") -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> test build message"]
+
+      it "prints out boot logs" $ do
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot "test boot message") -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> test boot message"]
+
+      it "strips ansi escape sequences" $ do
+        let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "yellow message" <> cs (setSGRCode [Reset])
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot message) -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> yellow message"]
+
+      it "removes nonprintable characters" $ do
+        let message = cs (setSGRCode [SetColor Foreground Vivid Yellow]) <> "nonprintable: \BEL" <> cs (setSGRCode [Reset])
+        withMockContext ["a"] $ \(withLogMessage (Msg Boot message) -> ctx) -> do
+          result <- assertSuccess $ test ctx ["up", "a", "--verbose"]
+          T.lines (result ^. #stderr) `shouldContain` ["a> nonprintable: "]
 
 data Barrier = Barrier
   { target :: Int,
@@ -263,3 +304,27 @@ groupIntoSets ns list = case (ns, list) of
      in Set.fromList group : groupIntoSets ns rest
   ([], []) -> []
   _ -> error "groupIntoSets: didn't get right amount of elements"
+
+data LogMessage = Msg Phase Text
+
+data Phase
+  = Build
+  | Boot
+  deriving stock (Eq)
+
+withLogMessage :: LogMessage -> Context -> Context
+withLogMessage (Msg phase message) context =
+  context
+    & (#nixVms . #buildVmScript)
+    %~ ( \buildVmScript ctx handle vmName ip -> do
+           when (phase == Build) $ do
+             forM_ handle $ \handle -> do
+               T.hPutStrLn handle message
+           buildVmScript ctx handle vmName ip
+       )
+    & (#nixVms . #runVm)
+    %~ ( \runVm ctx handle vmName vmExecutable -> do
+           when (phase == Boot) $ do
+             T.hPutStrLn handle message
+           runVm ctx handle vmName vmExecutable
+       )

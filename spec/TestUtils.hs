@@ -115,19 +115,19 @@ withMockContext vmNames action = do
   let mockNixVms =
         NixVms
           { listVms = \_ctx -> pure vmNames,
-            buildVmScript = \_ctx _vmName _ip -> do
+            buildVmScript = \_ctx _handle _vmName _ip -> do
               port <- getFreePort
               pure ("/fake-vm-script", port),
             runVm =
-              \_ctx _verbosity vmName _vmScript -> do
+              \_ctx handle vmName _vmScript -> do
                 unless (vmName `elem` vmNames) $ do
                   error $ cs $ "nix vm mock: vm not found: " <> vmNameToText vmName
                 (_, _, _, ph) <- do
                   createProcess
                     (proc "sleep" ["inf"])
                       { std_in = NoStream,
-                        std_out = NoStream,
-                        std_err = NoStream
+                        std_out = UseHandle handle,
+                        std_err = UseHandle handle
                       }
                 pure ph,
             sshIntoVm = SshIntoVm $ \ctx vmName _port command -> do

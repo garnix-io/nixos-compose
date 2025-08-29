@@ -76,7 +76,7 @@ spec = do
 
     it "starts vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
-      _ <- assertSuccess $ test ctx ["up", "server"]
+      _ <- assertSuccess $ test ctx ["up", "server", "--verbose"]
       (stdout <$> assertSuccess (test ctx ["ssh", "server", "hostname"])) `shouldReturn` "server\n"
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "running")]]
 
