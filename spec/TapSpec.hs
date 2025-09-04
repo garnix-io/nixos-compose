@@ -46,7 +46,7 @@ spec = do
             "`sudo` not found in the $PATH, cannot create `tap` device.\nYou can run the following commands with elevated privileges to create it manually:\n\n"
             (ExitFailure 1)
 
-    it "allows to start tap before starting vms" $ do
+    it "allows starting tap before starting vms" $ do
       withMockContext ["server"] $ \ctx -> do
         withMockSudo $ \getMockSudoCalls -> do
           _ <- assertSuccess $ test ctx ["tap"]
@@ -65,7 +65,7 @@ spec = do
           test ctx ["tap"] `shouldReturn` TestResult "tap device already running\n" "" ExitSuccess
           getMockSudoCalls `shouldReturn` ""
 
-    it "allows to remove the tap device with vms running" $ do
+    it "allows removing the tap device with vms running" $ do
       withMockContext ["server"] $ \ctx -> do
         withMockSudo $ \getMockSudoCalls -> do
           _ <- assertSuccess $ test ctx ["tap"]
@@ -75,7 +75,7 @@ spec = do
           _ <- assertSuccess $ test ctx ["tap", "--remove"]
           getMockSudoCalls `shouldReturn` ("kill -15 " <> show tapPid <> "\n")
 
-    it "allows to remove the tap device with no vms running" $ do
+    it "allows removing the tap device with no vms running" $ do
       withMockContext ["server"] $ \ctx -> do
         withMockSudo $ \getMockSudoCalls -> do
           _ <- assertSuccess $ test ctx ["tap"]
@@ -111,7 +111,7 @@ spec = do
                 "Would run the following commands:\n\n"
                 ExitSuccess
 
-      it "allows to show removal commands with --dry-run" $ do
+      it "allows showing removal commands with --dry-run" $ do
         withMockContext ["server"] $ \ctx -> do
           withMockSudo $ \getMockSudoCalls -> do
             _ <- assertSuccess $ test ctx ["tap"]
