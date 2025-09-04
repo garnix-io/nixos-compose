@@ -202,7 +202,7 @@ spec = do
 
     describe "networking" $ do
       repoRoot <- runIO getCurrentDirectory
-      it "allows to talk from one vm to the other by static ip" $ \ctx -> do
+      it "allows talking from one vm to the other by static ip" $ \ctx -> do
         copyFile (repoRoot </> "spec/static-ips/flake.nix") (workingDir ctx </> "flake.nix")
         _ <- assertSuccess $ test ctx ["up", "a", "b"]
         aIp <- T.strip . stdout <$> assertSuccess (test ctx ["ip", "a"])

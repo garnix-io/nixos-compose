@@ -18,7 +18,7 @@ import Data.Map qualified as Map
 import Data.Text qualified as T
 import Logging
 import Net.IPv4 qualified as IPv4
-import Options (AllOrSomeVms (..), DryRunFlag, VmName (..))
+import Options (AllOrSomeVms (..), DryRunFlag, RemoveFlag (..), VmName (..))
 import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
@@ -95,12 +95,20 @@ ip ctx vm = modifyState_ ctx $ \state -> do
     Just vmState -> output ctx $ IPv4.encode (vmState ^. #ip)
   pure state
 
-tap :: Context -> DryRunFlag -> IO ()
-tap ctx dryRunFlag = do
-  state <- readState ctx
-  case state ^. #vde of
-    Nothing -> do
-      info ctx "Cannot start `tap` device with no VMs running"
-      throwIO $ ExitFailure 1
-    Just _ -> do
-      Vde.setupTapDevice ctx dryRunFlag hostIp
+tap :: Context -> RemoveFlag -> DryRunFlag -> IO ()
+tap ctx removeFlag dryRunFlag = do
+  case removeFlag of
+    NoRemove -> do
+      modifyState_ ctx $ \state -> do
+        state <- case state ^. #vde of
+          Just _ -> pure state
+          Nothing -> do
+            vdeState <- Vde.start ctx
+            pure $ state & (#vde ?~ vdeState)
+        Vde.setupTapDevice ctx dryRunFlag hostIp
+        pure state
+    Remove -> do
+      pid <- Vde.vde_plug2tapReadPidFile ctx
+      case pid of
+        Nothing -> info ctx "tap device not running, nothing to do"
+        Just pid -> Vde.stopTapDevice ctx dryRunFlag pid
