@@ -2,6 +2,8 @@
 
 module Table (StyledText (..), withColor, renderTable) where
 
+import Control.Monad (join)
+import Data.Containers.ListUtils (nubOrd)
 import Data.String (IsString (..))
 import Data.String.Conversions (ConvertibleStrings (..))
 import Data.Text qualified as T
@@ -34,9 +36,9 @@ renderStyledText useColor t = case (useColor, color t) of
 renderTable :: Bool -> [[(Text, StyledText)]] -> Text
 renderTable useColors = \case
   [] -> ""
-  rows@(first : _) ->
+  rows ->
     let ansi codes t = if useColors then codes <> t <> reset else t
-        headers = fmap fst first
+        headers = nubOrd $ join $ map (map fst) rows
         columnWidths = flip map headers $ \header ->
           max (T.length header) (maximum (map (maybe 0 (T.length . unstyledText) . lookup header) rows))
         renderLines start char sep end =
@@ -61,7 +63,10 @@ renderTable useColors = \case
         topLine = [renderLines "┌" "─" "┬" "┐"]
         header = [renderRow $ map cs headers]
         divider = [renderLines "├" "─" "┼" "┤"]
-        body = map (renderRow . map snd) rows
+        body =
+          flip map rows $ \row ->
+            renderRow $ flip map headers $ \header ->
+              fromMaybe "" (lookup header row)
         bottomLine = [renderLines "└" "─" "┴" "┘"]
      in T.unlines $
           topLine

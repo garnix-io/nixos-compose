@@ -14,6 +14,7 @@ import System.Environment (getEnv)
 import System.IO.Temp (withSystemTempDirectory)
 import System.Posix (sigKILL, signalProcess)
 import System.Process
+import Table (renderTable)
 import Test.Hspec
 import Test.Mockery.Environment (withModifiedEnvironment)
 import TestUtils
@@ -124,6 +125,31 @@ spec = do
                 ("kill -15 " <> cs (show tapPid) <> "\n")
                 "Would run the following commands:\n\n"
                 ExitSuccess
+
+    describe "status output" $ do
+      it "shows ip addresses when the tap device is up, when no vm name is given" $ do
+        withMockContext ["server"] $ \ctx -> do
+          withMockSudo $ \_getMockSudoCalls -> do
+            _ <- assertSuccess $ test ctx ["up", "server"]
+            _ <- assertSuccess $ test ctx ["tap"]
+            result <- assertSuccess $ test ctx ["status"]
+            result ^. #stdout
+              `shouldBe` renderTable
+                False
+                [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+                ]
+
+      it "shows ip addresses when the tap device is up, when a vm name is given" $ do
+        withMockContext ["server"] $ \ctx -> do
+          withMockSudo $ \_getMockSudoCalls -> do
+            _ <- assertSuccess $ test ctx ["up", "server"]
+            _ <- assertSuccess $ test ctx ["tap"]
+            result <- assertSuccess $ test ctx ["status", "server"]
+            result ^. #stdout
+              `shouldBe` renderTable
+                False
+                [ [("name", "server"), ("status", "running"), ("ip", "10.0.0.2")]
+                ]
 
 withMockSudo :: (IO String -> IO a) -> IO a
 withMockSudo action = do

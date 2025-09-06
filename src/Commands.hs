@@ -15,6 +15,7 @@ import Cradle
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
+import Data.Maybe (isJust)
 import Data.Text qualified as T
 import Logging
 import Net.IPv4 qualified as IPv4
@@ -73,6 +74,12 @@ status :: Context -> [VmName] -> IO ()
 status ctx args = do
   configuredVms <- listVms (nixVms ctx) ctx
   runningVms <- State.listRunningVms ctx
+  tapRunning <- isJust <$> Vde.vde_plug2tapReadPidFile ctx
+  let getIp vmName =
+        if tapRunning
+          then
+            (^. #ip) <$> Map.lookup vmName runningVms
+          else Nothing
   let listedVms = case args of
         [] -> nubOrd (configuredVms <> Map.keys runningVms)
         args -> args
@@ -87,6 +94,7 @@ status ctx args = do
               [ ("name", cs $ vmNameToText vmName),
                 ("status", vmStateToText (Map.lookup vmName runningVms))
               ]
+                <> maybe [] (\ip -> [("ip", cs (IPv4.encode ip))]) (getIp vmName)
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do
