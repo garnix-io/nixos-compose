@@ -162,7 +162,7 @@ spec = do
       withMockContext ["a"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "a"]
         runningVms ctx `shouldReturn` ["a"]
-        state <- readVmState ctx "a"
+        state <- fromJust <$> readVmState ctx "a"
         test ctx ["down", "a"] `shouldReturn` TestResult "stopping a\n" "" ExitSuccess
         runningVms ctx `shouldReturn` []
         exist <- doesDirectoryExist ("/proc" </> show (fromJust $ State.getPid state))
@@ -216,3 +216,13 @@ spec = do
                 stdout = "",
                 stderr = ""
               }
+
+    it "handles non-existing VMs gracefully" $ do
+      withMockContext [] $ \ctx -> do
+        result <- test ctx ["ssh", "a"]
+        result
+          `shouldBe` TestResult
+            { exitCode = ExitFailure 1,
+              stdout = "",
+              stderr = "vm 'a' is not running\n"
+            }

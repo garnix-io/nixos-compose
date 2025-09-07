@@ -23,7 +23,7 @@ spec = do
           takeFileName exe `shouldBe` "vde_switch"
 
     let assertVmIsRunning ctx vmName = do
-          state <- readVmState ctx vmName
+          state <- fromJust <$> readVmState ctx vmName
           let pid = fromJust $ getPid state
           comm <- readFile $ "/proc" </> show (pid :: ProcessID) </> "comm"
           comm `shouldBe` "sleep\n"

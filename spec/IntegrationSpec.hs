@@ -148,7 +148,7 @@ spec = do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["up", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "running")]]
-      state <- readVmState ctx "server"
+      state <- fromJust <$> readVmState ctx "server"
       _ <- assertSuccess $ test ctx ["down", "server"]
       (stdout <$> assertSuccess (test ctx ["status", "server"])) `shouldReturn` renderTable False [[("name", "server"), ("status", "not running")]]
       exist <- doesDirectoryExist ("/proc" </> show (fromJust $ getPid state))

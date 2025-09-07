@@ -5,6 +5,7 @@ import Control.Concurrent (MVar, modifyMVar_, myThreadId, newEmptyMVar, newMVar,
 import Control.Exception (AsyncException (..))
 import Control.Monad (forever)
 import Cradle
+import Data.Maybe (fromJust)
 import Data.Set (Set)
 import Data.Set qualified as Set
 import Data.Text qualified as T
@@ -93,7 +94,7 @@ spec = do
             _ <- Ki.fork scope $ do
               test ctx ["up", "a"]
             waitFor $ do
-              vmState <- readVmState ctx "a"
+              vmState <- fromJust <$> readVmState ctx "a"
               vmState `shouldBe` Building {ip = IPv4.fromOctets 10 0 0 2}
               test ctx ["up", "a"] `shouldReturn` TestResult "a: already building\n" "" ExitSuccess
               test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "building")]]) "" ExitSuccess
@@ -124,7 +125,7 @@ spec = do
           _ <- Ki.fork scope $ do
             test ctx ["up", "a"]
           waitFor $ do
-            vmState <- readVmState ctx "a"
+            vmState <- fromJust <$> readVmState ctx "a"
             vmState `shouldBe` Booting {ip = IPv4.fromOctets 10 0 0 2}
             test ctx ["up", "a"] `shouldReturn` TestResult "a: already booting\n" "" ExitSuccess
             test ctx ["status", "a"] `shouldReturn` TestResult (renderTable False [[("name", "a"), ("status", "booting")]]) "" ExitSuccess
