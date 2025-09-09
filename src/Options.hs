@@ -2,6 +2,7 @@ module Options
   ( parserInfo,
     Options (..),
     Verbosity (..),
+    RemoveFlag (..),
     DryRunFlag (..),
     Command (..),
     AllOrSomeVms (..),
@@ -48,7 +49,7 @@ data Command
   | Status {vmNames :: [VmName]}
   | Down {vms :: AllOrSomeVms}
   | Ip {vmName :: VmName}
-  | Tap {dryRun :: DryRunFlag}
+  | Tap {remove :: RemoveFlag, dryRun :: DryRunFlag}
   deriving stock (Show, Generic)
 
 instance Parseable Command where
@@ -93,7 +94,7 @@ instance Parseable Command where
           <> command
             "tap"
             ( info
-                (Tap <$> parser)
+                (Tap <$> parser <*> parser)
                 (progDesc "Set up a tap device, to allow network access to vms from the host (uses `sudo`)")
             )
       )
@@ -112,6 +113,14 @@ instance Parseable Verbosity where
           <> short 'v'
           <> help "increase verbosity"
       )
+
+data RemoveFlag
+  = NoRemove
+  | Remove
+  deriving stock (Show)
+
+instance Parseable RemoveFlag where
+  parser = flag NoRemove Remove (long "remove" <> help "Remove the tap device")
 
 data DryRunFlag
   = NoDryRun

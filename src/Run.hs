@@ -30,7 +30,7 @@ run ctx args =
       Ssh vmName command -> ssh ctx vmName (Data.Text.unwords command)
       Status vmNames -> status ctx vmNames
       Ip vmName -> ip ctx vmName
-      Tap dryRunFlag -> tap ctx dryRunFlag
+      Tap removeFlag dryRunFlag -> tap ctx removeFlag dryRunFlag
     pure ExitSuccess
 
 handleExceptions :: Context -> IO ExitCode -> IO ExitCode

@@ -15,10 +15,11 @@ import Cradle
 import Data.Containers.ListUtils (nubOrd)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map qualified as Map
+import Data.Maybe (catMaybes, isJust)
 import Data.Text qualified as T
 import Logging
 import Net.IPv4 qualified as IPv4
-import Options (AllOrSomeVms (..), DryRunFlag, VmName (..))
+import Options (AllOrSomeVms (..), DryRunFlag, RemoveFlag (..), VmName (..))
 import State
 import StdLib
 import System.Console.ANSI qualified as ANSI
@@ -73,20 +74,28 @@ status :: Context -> [VmName] -> IO ()
 status ctx args = do
   configuredVms <- listVms (nixVms ctx) ctx
   runningVms <- State.listRunningVms ctx
+  tapRunning <- isJust <$> Vde.vde_plug2tapReadPidFile ctx
+  let getIp vmName =
+        if tapRunning
+          then
+            (^. #ip) <$> Map.lookup vmName runningVms
+          else Nothing
+  supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
   let listedVms = case args of
         [] -> nubOrd (configuredVms <> Map.keys runningVms)
         args -> args
-  case listedVms of
-    [] -> output ctx "no vms configured, no vms running"
-    vmNames -> do
-      supportsAnsi <- ANSI.hNowSupportsANSI System.IO.stdout
-      output ctx $
-        T.stripEnd $
-          renderTable supportsAnsi $
-            flip map vmNames $ \vmName ->
-              [ ("name", cs $ vmNameToText vmName),
-                ("status", vmStateToText (Map.lookup vmName runningVms))
-              ]
+  let vmStatus = case listedVms of
+        [] -> "no vms configured, no vms running"
+        vmNames -> do
+          T.stripEnd $
+            renderTable supportsAnsi $
+              flip map vmNames $ \vmName ->
+                [ ("name", cs $ vmNameToText vmName),
+                  ("status", vmStateToText (Map.lookup vmName runningVms))
+                ]
+                  <> maybe [] (\ip -> [("ip", cs (IPv4.encode ip))]) (getIp vmName)
+  let tapStatus = if tapRunning then Just "(The tap device 'nixos-compose0' is up.)" else Nothing
+  output ctx $ T.intercalate "\n" $ catMaybes [Just vmStatus, tapStatus]
 
 ip :: Context -> VmName -> IO ()
 ip ctx vm = modifyState_ ctx $ \state -> do
@@ -95,12 +104,20 @@ ip ctx vm = modifyState_ ctx $ \state -> do
     Just vmState -> output ctx $ IPv4.encode (vmState ^. #ip)
   pure state
 
-tap :: Context -> DryRunFlag -> IO ()
-tap ctx dryRunFlag = do
-  state <- readState ctx
-  case state ^. #vde of
-    Nothing -> do
-      info ctx "Cannot start `tap` device with no VMs running"
-      throwIO $ ExitFailure 1
-    Just _ -> do
-      Vde.setupTapDevice ctx dryRunFlag hostIp
+tap :: Context -> RemoveFlag -> DryRunFlag -> IO ()
+tap ctx removeFlag dryRunFlag = do
+  case removeFlag of
+    NoRemove -> do
+      modifyState_ ctx $ \state -> do
+        state <- case state ^. #vde of
+          Just _ -> pure state
+          Nothing -> do
+            vdeState <- Vde.start ctx
+            pure $ state & (#vde ?~ vdeState)
+        Vde.setupTapDevice ctx dryRunFlag hostIp
+        pure state
+    Remove -> do
+      pid <- Vde.vde_plug2tapReadPidFile ctx
+      case pid of
+        Nothing -> info ctx "tap device not running, nothing to do"
+        Just pid -> Vde.stopTapDevice ctx dryRunFlag pid

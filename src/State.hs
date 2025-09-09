@@ -97,13 +97,13 @@ getStateFile ctx = do
   pure $ dir </> "state.json"
 
 cleanUpVdeSwitch :: Context -> State -> IO State
-cleanUpVdeSwitch ctx state =
-  case (state ^. #vde, Map.keys (state ^. #vms)) of
-    (Nothing, _) -> pure state
-    (Just _vdeState, _ : _) -> pure state
-    (Just vdeState, []) -> do
+cleanUpVdeSwitch ctx state = do
+  tapPid <- Vde.vde_plug2tapReadPidFile ctx
+  case (state ^. #vde, Map.keys (state ^. #vms), tapPid) of
+    (Just vdeState, [], Nothing) -> do
       Vde.stop ctx vdeState
       pure $ state & #vde .~ Nothing
+    _ -> pure state
 
 -- * vm state
 
