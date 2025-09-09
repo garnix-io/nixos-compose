@@ -67,7 +67,7 @@ ssh ctx vmName command = do
       Building {} -> do
         abort ctx "cannot ssh into a building vm"
       Booting {} -> do
-        abort ctx "cannot ssh into a building vm"
+        abort ctx "cannot ssh into a booting vm"
       Running {port} -> do
         exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port command
         throwIO exitCode
