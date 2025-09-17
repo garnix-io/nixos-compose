@@ -3,4 +3,4 @@ Please, consider reporting this as a bug here: https://github.com/garnix-io/nixo
 
 callstack:
 CallStack (from HasCallStack):
-  impossible, called at spec/LoggingSpec.hs:19:90 in nixos-compose-0.0.0-inplace-spec:LoggingSpec
+  impossible, called at spec/LoggingSpec.hs:20:90 in nixos-compose-0.0.0-inplace-spec:LoggingSpec
