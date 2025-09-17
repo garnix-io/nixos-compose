@@ -169,14 +169,19 @@ waitForVm ctx vmName port ph handleCrash = do
 updateVmHostEntries :: Context -> IO ()
 updateVmHostEntries ctx = do
   runningVms <- listRunningVms ctx
-  forM_ (Map.keys runningVms) $ \targetVmName -> do
+  forM_ (Map.toList runningVms) $ \(targetVmName, targetVmState) -> do
     case parseHostname $ vmNameToText targetVmName of
       Nothing -> info ctx $ "WARN: \"" <> vmNameToText targetVmName <> "\" is not a valid hostname. It will not be added to /etc/hosts."
       Just targetHostname -> do
-        targetIp <- (^. #ip) <$> readVmState ctx targetVmName
         forM_ (Map.toList runningVms) $ \(updatingVmName, updatingVmState) -> do
           case updatingVmState of
             Building {} -> pure ()
             Booting {} -> pure ()
             Running {port} -> do
-              updateVmHostsEntry (nixVms ctx) ctx updatingVmName port targetHostname targetIp
+              updateVmHostsEntry
+                (nixVms ctx)
+                ctx
+                updatingVmName
+                port
+                targetHostname
+                (targetVmState ^. #ip)

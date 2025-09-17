@@ -62,13 +62,15 @@ ssh :: Context -> VmName -> Text -> IO ()
 ssh ctx vmName command = do
   vmState <- State.readVmState ctx vmName
   case vmState of
-    Building {} -> do
-      abort ctx "cannot ssh into a building vm"
-    Booting {} -> do
-      abort ctx "cannot ssh into a building vm"
-    Running {port} -> do
-      exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port command
-      throwIO exitCode
+    Nothing -> abort ctx $ "vm '" <> vmNameToText vmName <> "' is not running"
+    Just vmState -> case vmState of
+      Building {} -> do
+        abort ctx "cannot ssh into a building vm"
+      Booting {} -> do
+        abort ctx "cannot ssh into a booting vm"
+      Running {port} -> do
+        exitCode :: ExitCode <- (ctx ^. #nixVms . #sshIntoVm . to runSshIntoVm) ctx vmName port command
+        throwIO exitCode
 
 status :: Context -> [VmName] -> IO ()
 status ctx args = do

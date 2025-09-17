@@ -167,12 +167,10 @@ claimVm ctx vm new = modifyState ctx $ \state -> do
           Right ()
         )
 
-readVmState :: Context -> VmName -> IO VmState
+readVmState :: Context -> VmName -> IO (Maybe VmState)
 readVmState ctx vmName = do
   state <- readState ctx
-  case Map.lookup vmName (state ^. #vms) of
-    Nothing -> impossible ctx $ "state for vm " <> vmNameToText vmName <> " not found"
-    Just vmState -> pure vmState
+  pure $ Map.lookup vmName (state ^. #vms)
 
 writeVmState :: Context -> VmName -> VmState -> IO ()
 writeVmState ctx vmName vmState = do
