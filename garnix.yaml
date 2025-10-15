@@ -1,5 +1,1 @@
-actions:
-  - on: push
-    run: spec
-
 fodChecks: true
