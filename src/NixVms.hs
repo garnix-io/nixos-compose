@@ -105,7 +105,7 @@ getModuleExtensions ctx vmName port ip = do
   pure $
     cs
       [i|
-        { pkgs, ... }: {
+        { config, pkgs, ... }: {
           console.enable = false;
           services.openssh.enable = true;
           users.users.vmuser = {
@@ -129,7 +129,11 @@ getModuleExtensions ctx vmName port ip = do
           ];
           virtualisation.vmVariant.virtualisation = {
             graphics = false;
-            forwardPorts = [{ from = "host"; host.port = #{port}; guest.port = 22; }];
+            forwardPorts = [{
+              from = "host";
+              host.port = #{port};
+              guest.port = builtins.head config.services.openssh.ports;
+            }];
           };
           networking.interfaces.eth1.ipv4.addresses = [{
             address = "#{IPv4.encode ip :: Text}";
