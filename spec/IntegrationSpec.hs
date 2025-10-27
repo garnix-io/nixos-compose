@@ -144,6 +144,29 @@ spec = do
       (stdout <$> assertSuccess (test ctx ["ssh", "a", "hostname"])) `shouldReturn` "a\n"
       (stdout <$> assertSuccess (test ctx ["ssh", "b", "hostname"])) `shouldReturn` "b\n"
 
+    it "works if openssh is configured to listen on a different port" $ \ctx -> do
+      writeFile
+        (workingDir ctx </> "flake.nix")
+        [i|
+          {
+            inputs.nixpkgs.url = "github:nixos/nixpkgs/#{nixpkgs2505Commit}";
+            outputs = { nixpkgs, ... }: {
+              nixosConfigurations.a = (nixpkgs.lib.nixosSystem {
+                modules = [
+                  {
+                    networking.hostName = "a";
+                    nixpkgs.hostPlatform = "x86_64-linux";
+                    system.stateVersion = "25.05";
+                    services.openssh.ports = [ 2222 ];
+                  }
+                ];
+              });
+            };
+          }
+        |]
+      _ <- assertSuccess $ test ctx ["up", "a"]
+      (stdout <$> assertSuccess (test ctx ["ssh", "a", "hostname"])) `shouldReturn` "a\n"
+
     it "can stop vms" $ \ctx -> do
       writeStandardFlake ctx Nothing
       _ <- assertSuccess $ test ctx ["up", "server"]
