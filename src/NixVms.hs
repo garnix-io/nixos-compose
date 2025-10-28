@@ -14,6 +14,7 @@ import Network.Socket.Free (getFreePort)
 import Options (VmName (..))
 import State
 import StdLib
+import System.Info (os)
 import System.Directory (createDirectoryIfMissing, listDirectory)
 import System.Environment (getEnvironment)
 import System.FilePath (takeDirectory)
@@ -52,6 +53,9 @@ listVmsImpl ctx = do
     Left err -> impossible ctx $ cs err
     Right (parsed :: [Text]) -> pure $ map VmName parsed
 
+darwinBuilderArgs :: [Text]
+darwinBuilderArgs = if os == "darwin" then ["--builders", "/etc/nix/builder_ed25519"] else [""]
+
 buildVmScriptImpl :: Context -> Maybe Handle -> VmName -> IPv4 -> IO (FilePath, Port)
 buildVmScriptImpl ctx handle vmName ip = do
   port <- getFreePort
@@ -84,6 +88,7 @@ buildVmScriptImpl ctx handle vmName ip = do
                    "--no-link",
                    drvPath <> "^*"
                  ]
+                 <> darwinBuilderArgs
           )
         & Cradle.setWorkingDir (workingDir ctx)
         & maybe id addStderrHandle handle

@@ -40,7 +40,7 @@
           ];
         });
         runtimeDeps = [
-          pkgs.iproute2
+          (if pkgs.stdenv.isLinux then pkgs.iproute2 else pkgs.iproute2mac)
           pkgs.nix
           pkgs.openssh
           pkgs.vde2
