@@ -100,6 +100,13 @@ spec = do
       cs (stderr result) `shouldContain` "does-not-exist: building...\nCommand exited with code 1"
       cs (stderr result) `shouldContain` "does not provide attribute 'packages.x86_64-linux.nixosConfigurations.\"does-not-exist\""
 
+    it "`vmcli start` doesn't mess up the terminal" $ \ctx -> do
+      writeStandardFlake ctx Nothing
+      Cradle.StdoutRaw before <- Cradle.run $ Cradle.cmd "stty" & Cradle.addArgs ["-a" :: Text]
+      _ <- assertSuccess $ test ctx ["start", "server"]
+      Cradle.StdoutRaw after <- Cradle.run $ Cradle.cmd "stty" & Cradle.addArgs ["-a" :: Text]
+      after `shouldBe` before
+
     it "starts vms with arbitrary hostnames" $ \ctx -> do
       writeStandardFlake ctx (Just "{ lib, ...} : { networking.hostName = lib.mkForce \"other-hostname\"; }")
       _ <- assertSuccess $ test ctx ["up", "server"]
