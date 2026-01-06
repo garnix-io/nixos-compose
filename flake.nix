@@ -120,6 +120,7 @@
                 cd "$dir"
                 cp -r ${devSrc}/. .
                 chmod -R a+w .
+                export LANG=C.UTF-8
                 cabal run spec --ghc-option=-Werror -- --strict
               '';
             });
