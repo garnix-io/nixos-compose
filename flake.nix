@@ -28,6 +28,7 @@
             fileset = lib.fileset.unions [
               ./nixos-compose.cabal
               ./src
+              ./LICENSE
             ];
           };
         haskellPackage = pkgs.haskell.lib.overrideCabal (haskellPackages.callCabal2nix "nixos-compose" prodSrc { }) (old: {
