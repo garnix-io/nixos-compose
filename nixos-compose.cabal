@@ -6,6 +6,8 @@ cabal-version: 1.12
 
 name:           nixos-compose
 version:        0.0.0
+license:        BSD3
+license-file:   LICENSE
 build-type:     Simple
 
 executable nixos-compose

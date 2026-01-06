@@ -1,6 +1,7 @@
 module CliSpec where
 
 import Context
+import Control.Exception.Safe (bracket)
 import Data.Map qualified as Map
 import Data.Maybe (fromJust)
 import Data.String.Interpolate (i)
@@ -12,6 +13,8 @@ import State (getPid, readVmState)
 import State qualified
 import StdLib
 import System.Directory (doesDirectoryExist, listDirectory)
+import System.Process (createProcess, proc, terminateProcess)
+import System.Process qualified
 import Table (renderTable)
 import Test.Hspec
 import Test.Hspec.Golden (defaultGolden)
@@ -114,28 +117,38 @@ spec = do
         listDirectory (ctx ^. #storageDir) `shouldReturn` ["state.json"]
 
     describe "running vms from other flake files" $ do
-      let fakeVmState =
+      let withFakeProcess action =
+            bracket setup terminateProcess $ \ph -> do
+              Just pid <- System.Process.getPid ph
+              action pid
+            where
+              setup = do
+                (_, _, _, ph) <- createProcess $ proc "sleep" ["inf"]
+                pure ph
+      let fakeVmState pid =
             State.Running
               { port = 8080,
-                pid = 42,
+                pid,
                 ip = IPv4.fromOctets 10 0 0 42
               }
       it "prints running vms when there's no configured vms in the local flake file" $ do
         withMockContext [] $ \ctx -> do
-          State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" fakeVmState))
-          result <- assertSuccess $ test ctx ["status"]
-          result ^. #stdout `shouldBe` renderTable False [[("name", "other"), ("status", "running")]]
+          withFakeProcess $ \pid -> do
+            State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" (fakeVmState pid)))
+            result <- assertSuccess $ test ctx ["status"]
+            result ^. #stdout `shouldBe` renderTable False [[("name", "other"), ("status", "running")]]
 
       it "prints running vms from other directories with configured vms" $ do
         withMockContext ["a"] $ \ctx -> do
-          State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" fakeVmState))
-          result <- assertSuccess $ test ctx ["status"]
-          result ^. #stdout
-            `shouldBe` renderTable
-              False
-              [ [("name", "a"), ("status", "not running")],
-                [("name", "other"), ("status", "running")]
-              ]
+          withFakeProcess $ \pid -> do
+            State.modifyState_ ctx (pure . (#vms %~ Map.insert "other" (fakeVmState pid)))
+            result <- assertSuccess $ test ctx ["status"]
+            result ^. #stdout
+              `shouldBe` renderTable
+                False
+                [ [("name", "a"), ("status", "not running")],
+                  [("name", "other"), ("status", "running")]
+                ]
 
   describe "list" $ do
     it "lists all configured vms" $ do
