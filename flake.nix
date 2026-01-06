@@ -1,5 +1,5 @@
 {
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.11";
   inputs.flake-utils.url = "github:numtide/flake-utils";
   inputs.cradle = {
     url = "github:garnix-io/cradle";

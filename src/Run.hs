@@ -7,7 +7,7 @@ import Context.Production qualified
 import Context.Utils (info)
 import Control.Exception qualified
 import Control.Exception.Safe (SomeException, fromException)
-import Data.Text hiding (elem)
+import Data.Text qualified
 import Options
 import Options.Applicative (execParserPure, handleParseResult, prefs, showHelpOnError)
 import StdLib
