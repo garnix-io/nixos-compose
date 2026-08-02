@@ -12,7 +12,6 @@ import StdLib
 import System.Directory (createDirectoryIfMissing, doesDirectoryExist, doesFileExist, removeFile)
 import System.Environment (getEnv)
 import System.IO.Temp (withSystemTempDirectory)
-import System.Posix (sigKILL, signalProcess)
 import System.Process
 import Table (renderTable)
 import Test.Hspec
@@ -28,7 +27,7 @@ spec = do
       withMockContext ["server"] $ \ctx -> do
         withMockSudo $ \getMockSudoCalls -> do
           _ <- assertSuccess $ test ctx ["up", "server"]
-          _ <- assertSuccess $ test ctx ["tap"]
+          test ctx ["tap"] `shouldReturn` TestResult "" "" ExitSuccess
           expected <- expectedCommands ctx
           getMockSudoCalls `shouldReturn` unlines (fmap unwords expected)
 
@@ -40,7 +39,7 @@ spec = do
         Nothing -> pure ()
       withMockContext ["server"] $ \ctx -> do
         _ <- assertSuccess $ test ctx ["up", "server"]
-        expectedStdout <- expectedCommands ctx
+        expectedStdout <- expectedDisplayedCommands ctx
         test ctx ["tap"]
           `shouldReturn` TestResult
             (cs $ unlines $ fmap unwords expectedStdout)
@@ -65,6 +64,17 @@ spec = do
           _ <- getMockSudoCalls
           test ctx ["tap"] `shouldReturn` TestResult "tap device already running\n" "" ExitSuccess
           getMockSudoCalls `shouldReturn` ""
+
+    it "recovers from an empty vde_plug2tap pid file" $ do
+      withMockContext [] $ \ctx -> do
+        createDirectoryIfMissing True (storageDir ctx)
+        T.writeFile (Vde.vde_plug2tapPidFile ctx) ""
+        withMockSudo $ \getMockSudoCalls -> do
+          _ <- assertSuccess $ test ctx ["tap"]
+          expected <- expectedCommands ctx
+          getMockSudoCalls `shouldReturn` unlines (fmap unwords expected)
+          tapPid <- getTapPid ctx
+          doesDirectoryExist ("/proc/" <> show (tapPid :: ProcessID)) `shouldReturn` True
 
     it "allows removing the tap device with vms running" $ do
       withMockContext ["server"] $ \ctx -> do
@@ -91,7 +101,7 @@ spec = do
           _ <- assertSuccess $ test ctx ["tap"]
           _ <- getMockSudoCalls
           tapPid <- getTapPid ctx
-          signalProcess sigKILL tapPid
+          stopProcess ctx VdePlug2Tap
           waitFor $ do
             doesDirectoryExist ("/proc/" <> show (tapPid :: ProcessID)) `shouldReturn` False
           _ <- assertSuccess $ test ctx ["tap"]
@@ -103,7 +113,7 @@ spec = do
         withMockContext ["server"] $ \ctx -> do
           withMockSudo $ \getMockSudoCalls -> do
             _ <- assertSuccess $ test ctx ["up", "server"]
-            expectedStderr <- expectedCommands ctx
+            expectedStderr <- expectedDisplayedCommands ctx
             result <- test ctx ["tap", "--dry-run"]
             getMockSudoCalls `shouldReturn` []
             result
@@ -175,6 +185,7 @@ withMockSudo action = do
   withSystemTempDirectory "mock-sudo" $ \mockSudoDir -> do
     let mockSudoBinDir = mockSudoDir </> "bin"
     let mockSudoPath = mockSudoBinDir </> "sudo"
+    let mockIpPath = mockSudoBinDir </> "ip"
     createDirectoryIfMissing True mockSudoBinDir
     T.writeFile
       mockSudoPath
@@ -184,7 +195,7 @@ withMockSudo action = do
               [i|
                 #!/usr/bin/env python3
 
-                import subprocess
+                import os
                 import sys
 
                 args = " ".join(sys.argv[1:])
@@ -196,12 +207,43 @@ withMockSudo action = do
                   pidFileFlagIndex = None
                 if pidFileFlagIndex is not None:
                   pidFile = sys.argv[pidFileFlagIndex + 1]
-                  process = subprocess.Popen(["sleep", "inf"])
-                  with open(pidFile, "w") as file:
-                    file.write(str(process.pid))
+                  with open(pidFile, "x") as file:
+                    file.write(str(os.getpid()))
+
+                  # Model run0's service lifecycle: once a daemonized command
+                  # exits, its remaining child is killed with the service.
+                  if "--daemon" in sys.argv:
+                    sys.exit(0)
+
+                  with open("#{mockSudoDir}/tap-pid", "w") as file:
+                    file.write(str(os.getpid()))
+                  os.execvp("sleep", ["sleep", "inf"])
               |]
       )
-    Cradle.run_ $ Cradle.cmd "chmod" & Cradle.addArgs ["+x", mockSudoPath]
+    T.writeFile
+      mockIpPath
+      ( T.strip $
+          cs $
+            unindent
+              [i|
+                #!/usr/bin/env python3
+
+                import os
+                import sys
+
+                if sys.argv[1:] == ["link", "show", "dev", "nixos-compose0"]:
+                  print("mock ip stdout")
+                  print("mock ip stderr", file=sys.stderr)
+                  try:
+                    with open("#{mockSudoDir}/tap-pid") as file:
+                      os.kill(int(file.read()), 0)
+                  except (FileNotFoundError, ProcessLookupError, ValueError):
+                    sys.exit(1)
+
+                sys.exit(0)
+              |]
+      )
+    Cradle.run_ $ Cradle.cmd "chmod" & Cradle.addArgs ["+x", mockSudoPath, mockIpPath]
     pathWithMockSudo <-
       getEnv "PATH"
         <&> ((mockSudoBinDir <> ":") <>)
@@ -220,10 +262,16 @@ expectedCommands :: Context -> IO [[String]]
 expectedCommands ctx = do
   Paths {vde_plug2tap, ip, vdeCtlDir, pidFile} <- getPaths ctx
   pure
-    [ [vde_plug2tap, "--daemon", "--pidfile", pidFile, "--sock", vdeCtlDir, "nixos-compose0"],
+    [ [vde_plug2tap, "--pidfile", pidFile, "--sock", vdeCtlDir, "nixos-compose0"],
       [ip, "addr", "add", "10.0.0.1/24", "dev", "nixos-compose0"],
       [ip, "link", "set", "nixos-compose0", "up"]
     ]
+
+expectedDisplayedCommands :: Context -> IO [[String]]
+expectedDisplayedCommands ctx = do
+  expectedCommands ctx <&> \case
+    [] -> []
+    tapCommand : configureCommands -> (tapCommand <> ["&"]) : configureCommands
 
 getTapPid :: Context -> IO Pid
 getTapPid ctx = do
