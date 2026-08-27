@@ -30,6 +30,7 @@ data Context = Context
 
 data ProcessType
   = VdeSwitch
+  | VdePlug2Tap
   | Vm VmName
   deriving stock (Show, Eq, Ord)
 
